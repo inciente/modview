@@ -80,7 +80,7 @@ def powerspec(timeseries, dt, timeax=0, hann=True):
 	return np.real(spectrum)
 	
 
-def xpass(var, frads, dt_obs, filt_type, order = 4):
+def xpass(var, frads, dt_obs, filt_type, order = 3):
     # Create digital filter for evenly spaced data
     Wn = makefreq( frads, dt_obs ) 
     b,a = butter( order, Wn, btype = filt_type, analog = False)
