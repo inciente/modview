@@ -2,6 +2,7 @@ import numpy as np
 import xarray as xr
 import pandas as pd
 import scipy.io as sio
+import datetime
 
 def readmat(filepath, variables, structures='none'):
     # Get data from a matfile 
@@ -20,7 +21,18 @@ def readmat(filepath, variables, structures='none'):
             data[kk] = matfile[item][0][kk][0]; # get data inside struct
     # Returns a dictionary with all requested variables 
     return data
-
+    
+def datenum(dnumvec):
+    ''' 
+    Take in a sequence of matlab datenum objects and transform it into 
+    python datetimes '''
+    ref_date = datetime.datetime.strptime('Jul 14 1916 00:00','%b %d %Y %H:%M');
+    ref_num = 7e5; # ref_date in matlab format
+    
+    py_deltas = [datetime.timedelta(days=(dtn-ref_num)) for dtn in dnumvec]; 
+    py_dates = [ref_date + dt for dt in py_deltas];
+    return py_dates
+	
 # Loader functions and datatype classes will be defined in this module. 
 class assemble:
     def __init__(self, obj_id, paths ):
