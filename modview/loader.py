@@ -62,27 +62,55 @@ class assemble:
         # This method will:
         # 1. Load dataset from "file"
         dataset = [self.retrieve(filename,'netcdf') for filename in filepaths];
-            
         # 2. Extract variable grid from "varname" in that dataset. 
-        myvar = [dataset[kk][varname] for kk in range(len(filepaths))];
-            
+        myvar = [dataset[kk][varname] for kk in range(len(filepaths))];   
         #        If cut=True, load only a slice into memory 
         if isinstance(limits, dict):
             if limits['t0'] != 'none':
-                myvar = [myvar[kk].sel(time=slice(limits['t0'],limits['t1'])) for kk in range(len(filename))];
-                    
+                myvar = [myvar[kk].sel(time=slice(limits['t0'],limits['t1'])) for kk in range(len(filename))];         
         # 3. Store variable grid inside of self.grids.
         self.grids[varname] = myvar;
+        #print(self.grids)
+    
+    def interp_grid(self, variables, sorter ):
+        '''  This method takes dictionary list items within self.grids[variable]
+        - - format of items must be xr.DataArray 
+        - - all items are interpolated onto a new set of axes 
+        - - sorter is the str() for whatever dim unites measurements 
+                           for moorings it's usually depth or z '''
+        
+        source_coords = dict(); 
+        source_data = dict(); 
+        cake = []; 
+        
+        # Cyle through all variables requested
+        for kk in range(len(variables)):
+            datlist = self.grids[variables[kk]];
+            vardata = [];
+            varcoords = []; 
+            # Data array with all values
+            all_inst = xr.concat( datlist, dim=sorter )
+            all_inst[sorter] = all_inst[sorter] + 1e-5*np.random.rand( len(all_inst[sorter]) ); 
+            all_inst = all_inst.sortby(sorter); 
+            
+            if all_inst.dims[1] == sorter:
+                all_inst = all_inst.transpose(); # only works for 2d objects
 
-    def make_multivar(self, vars2get, filepaths):
+            all_inst = all_inst.interpolate_na(dim=sorter);
+            self.grids[variables[kk]] = all_inst; # replace list for single xr object
+        
+		   
+		   
+		   
+#    def make_multivar(self, vars2get, filepaths):
 		# Input a dictionary whose keys are variable names, and content are 
 		# lists with files where each variable is stored 
 	
-    def unifygrid(self, variable, common_vecs):
-        varexists = variable in self.grids; 
-        if varexists == False:
-            print('Variable files have not been loaded');
-            return 
+#    def unifygrid(self, variable, common_vecs):
+#        varexists = variable in self.grids; 
+#        if varexists == False:
+#            print('Variable files have not been loaded');
+#            return 
         
     def gridtime(self, varname):
         gridobj = self.grids[varname];
