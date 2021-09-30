@@ -140,11 +140,12 @@ class matfile:
             my_coords = self.read_struct( in_struct, dimnames);
             var_data = self.read_struct( in_struct, varnames ); 
             for dim in dimnames: 
-                if len(coords[dim].shape) == 2:
+                if len(my_coords[dim].shape) == 2:
                     my_coords[dim] = np.reshape( my_coords[dim],-1); 
                 if dim == datenumdim:
                     my_coords[dim] = self.datenum_to_datetime(my_coords[dim]); 
-        xrobj = xr.DataArray(data=var_data, coords=my_coords, dims=dimnames); 	
+        
+        xrobj = xr.DataArray(data=var_data[varnames[0]], coords=my_coords, dims=dimnames); 	
         return xrobj
         
         
