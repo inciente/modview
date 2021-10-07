@@ -4,6 +4,40 @@ import pandas as pd
 import scipy.io as sio
 import datetime
 import os.path
+import warnings
+
+def clean_chivar(data_dict, flags, var2clean, as_xr=False):
+    # chi_data is a dict produced by reading multiple variables in matfile
+    # flags is a pd.dataframe extracted from csv
+    # var2clean is a list of strings identifying data
+    # Use flag file to average only valid estimates in data
+    
+    SN = data_dict['SN'][0];
+    Ninst = len(data_dict['SN'][0])
+    Nmeas = len(data_dict['time']);
+    varmat = np.empty( (Nmeas, Ninst)); varmat[:]=np.nan; 
+    
+    for inst in range(Ninst):
+        estsel = flags.loc[inst][1:]; # flags for instrument
+        all_data = data_dict[var2clean][inst,0];
+        #var_here = data_dict[var2clean][inst,0][estsel,:];
+        for zind in range(len(estsel.values)):
+            if estsel[zind] == False:
+                all_data[zind,:] = np.nan;
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore",category=RuntimeWarning);
+            varmat[:,inst] = np.nanmean( all_data, axis=0);
+
+    # Now save in a dataframe
+    if as_xr:
+        chidat = xr.DataArray(data=varmat, dims=['time','SN'],
+                    coords={'time':data_dict['time'],'SN':['SN'+str(kk) for kk in SN]});	
+    else: 
+        chidat = pd.DataFrame( data=varmat, index=data_dict['time'],
+                              columns='SN'+str(SN)); 
+        chidat.index = pd.to_datetime(chidat.index);
+        
+    return chidat
 
 # Loader functions and datatype classes will be defined in this module. 
 class assemble:
@@ -48,7 +82,28 @@ class assemble:
         # Store list of grids in dictionary
             self.grids[item] = myvar;
 
-
+    def remove_limit_row(self, variable, item, dirax, howmany, first=False):
+        # Remove the first or last row of non-nan measurements along a dimension
+        check_limit = ~np.isnan( self.grids[variable][int(item)].values);
+        if first:
+            check_limit = np.cumsum( check_limit, axis=dirax);
+        else:
+            check_limit = np.sum(check_limit,axis=dirax) - np.cumsum(check_limit,axis=dirax);
+        ax2run = abs(dirax-1); 
+        grid_length = self.grids[variable][item].shape[ax2run]; 
+        new_var = self.grids[variable][item].values; 
+        for tt in range(grid_length):
+            check_here = check_limit.take(indices=tt,axis=ax2run);
+            where_z = check_here<howmany;
+            #print(where_z)
+            where_t = np.repeat(tt,len(where_z));
+            #print(where_t)
+            new_var[where_z, tt] = np.nan;
+        self.grids[variable][item] = xr.DataArray( data=new_var, 
+                    dims=self.grids[variable][item].dims, coords= \
+                    self.grids[variable][item].coords); 
+    def makeplot(self):
+        self.grids['u'][2].plot()
     def interp_grid(self, variables, sorter ):
         '''  This method takes dictionary list items within self.grids[variable]
         - - format of items must be xr.DataArray 
@@ -74,10 +129,8 @@ class assemble:
                 all_inst = all_inst.transpose(); # only works for 2d objects
 
             all_inst = all_inst.interpolate_na(dim=sorter);
-            self.grids[variables[kk]] = all_inst; # replace list for single xr object
+            self.vars[variables[kk]] = all_inst; # replace list for single xr object
      
-		   
-		   
 #    def make_multivar(self, vars2get, filepaths):
 		# Input a dictionary whose keys are variable names, and content are 
 		# lists with files where each variable is stored 

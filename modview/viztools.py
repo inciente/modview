@@ -5,6 +5,26 @@ import numpy as np
 import scipy.interpolate as interpolate
 import pandas as pd
 
+def dateticks(axlist, axind, dts):
+    # Major ticks.
+    fmt_big = mpl.dates.DayLocator(interval=dts[1])
+    axlist[axind].xaxis.set_major_locator(fmt_big)
+    # Minor ticks.
+    fmt_small = mpl.dates.DayLocator(interval=dts[0])
+    axlist[axind].xaxis.set_minor_locator(fmt_small)
+    # FOrmat of text
+    axlist[axind].xaxis.set_major_formatter(mpl.dates.DateFormatter('%b %-d'))
+
+def dateticks2(ax_obj, dts):
+    # Major ticks.
+    fmt_big = mpl.dates.DayLocator(interval=dts[1])
+    ax_obj.xaxis.set_major_locator(fmt_big)
+    # Minor ticks.
+    fmt_small = mpl.dates.DayLocator(interval=dts[0])
+    ax_obj.xaxis.set_minor_locator(fmt_small)
+    # FOrmat of text
+    ax_obj.xaxis.set_major_formatter(mpl.dates.DateFormatter('%b %-d'))
+
 def scatter_xyz(x,y,color_var,y_offset='none',m_axis=1,vlims='auto'):
 	# Input a matrix (x). It is assumed that each column (m_axis=1) is a 
 	# different set of measurements to be plotted.
@@ -25,24 +45,34 @@ def scatter_xyz(x,y,color_var,y_offset='none',m_axis=1,vlims='auto'):
     sf = plt.scatter(x2plot, y2plot, c=c2plot, vmin=vlims[0], vmax=vlims[1]); 
     return sf
     
-def grid_xyz(df,y,y_query,dt_query,limits='none', log=False):
+    
+def grid_xyz(df,y,y_query,dt_query,limits='none', log=False, data_format='xr'):
 	# Take in a pandas dataframe with values (z) and index (x). 
 	# y is 1d vector or pd.df with same shape as df. 
 	# dt_query is a string (argument of resample)
-    if isinstance(limits,dict):
-        df = df[limits['t0']:limits['t1']]; 
-        y = y[limits['t0']:limits['t1']]; 
-    df = df.resample(dt_query).mean();
-    if log:
-        df = np.log10(df);  
-    y = y.resample(dt_query).mean(); 
-    gridded = np.empty([df.shape[0],len(y_query)]);
-    gridded[:] = np.nan;
-    for tt in range(df.shape[0]):
-        locations = y.values[tt,:]; 
-        valz = df.values[tt,:]; 
-        finterp = interpolate.interp1d( locations, valz)
-        gridded[tt,:] = finterp(y_query);
+    if data_format=='pd':
+        if isinstance(limits,dict):
+            df = df[limits['t0']:limits['t1']]; 
+            y = y[limits['t0']:limits['t1']]; 
+        df = df.resample(dt_query).mean();
+        y = y.resample(dt_query).mean(); #movement of chipods
+        if log:
+            df = np.log10(df);  
+        
+        gridded = np.empty([df.shape[0],len(y_query)]);
+        gridded[:] = np.nan; #interpolate onto this empty matrix
+        for tt in range(df.shape[0]): # for each timestep
+            locations = y.values[tt,:]; # read chipod depths
+            valz = df.values[tt,:]; # measurement
+        
+            finterp = interpolate.interp1d( locations, valz, bounds_error='none');
+            # Check for query inside observation range
+            gridded[tt,:] = finterp(y_query);
+        if tt == 40:
+            plt.scatter(valz, locations,s=30)
+            plt.plot(finterp(y_query), y_query)  
+            print(valz)
+            print(locations)
     gridded = pd.DataFrame(data=gridded, index=df.index, columns=y_query);      
     return gridded
     
