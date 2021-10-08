@@ -61,7 +61,7 @@ class internal_wave:
     
     @fk.setter
     def fk(self, wave_properties):
-        # Run dis_rel using fk_vec input. 
+        # Run dispersion_relation using wave_properties input. 
         test_func = self.dispersion_relation()
         
         test_input = []; solve_for = []; var_solved = [];
@@ -71,15 +71,23 @@ class internal_wave:
                     solve_for.append(sym.symbols(key)); # values missing
             else: 
                 test_input.append( (sym.symbols(key), value) ) # values known
-        try_func = test_func.subs(test_input);
-        solution = sym.solve(try_func, solve_for)
+        try_func = test_func.subs(test_input);        
+        if solve_for == []: # if all values are known
+		    # evaluate try_func
+            if try_func == 0:
+                self._fk = wave_properties;
+            else:
+                print('wave properties not compliant with dispersion relationship')
+                pass
+        else:	
+            solution = sym.solve(try_func, solve_for) # use known values to infer missing values
         
-        if solution[0].is_real:
-            wave_properties[var_solved[0]] = solution[0];
-            self._fk = wave_properties; 
-        else:
-            print('Incompatible values: imaginary wavenumber');
-            pass
+            if solution[0].is_real:
+                wave_properties[var_solved[0]] = solution[0];
+                self._fk = wave_properties; # update wave properties
+            else:
+                print('Incompatible values: imaginary wavenumber');
+                pass
 
     def dispersion_relation(self):
         # Symbolic representation of dispersion relation
@@ -91,8 +99,4 @@ class internal_wave:
     
     def group_vel(self, direction='z'):   
         pass
-        
-        
-        
-        
-        
+
