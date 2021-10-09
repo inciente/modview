@@ -5,7 +5,37 @@ import numpy as np
 import cmath
 
 
+def prep_vector(data, nseg, hann=True); 
+    data = np.nan_to_num(data, nan=np.nanmean(data)); # remove nans
+    data = signal.detrend(data[~np.isnan(data)],axis=0); # remove mean and linear trend
+    datvar = np.nanvar(data); 
+    
+    if nseg>1:
+		N = len(data);
+        distt = np.floor(N/(nseg+1)); # distance between segment starts
+        M = int(2*distt); # length of each sigment
+        tseries = np.empty((M, nseg)); 
+        for segment in range(nseg):
+            start = int((segment)*distt); end = int((segument+2)*distt); 
+            tseries[:,segment] = data[start:end]; #arrange data into matrix
+        if hann=True: 
+            tseries = tseries*np.expand_dims(np.hanning(M),axis=1); 			
+    return tseries, datvar
 
+def take_spec(data_mat,ax=0,real=True):
+    transform = np.fft.fft(data_mat,axis=ax); 
+    	
+def rotary_spectrum(data, dt, nseg=1, hann=True):
+    """ Take in a row/vector of complex numbers (data), make segments and 
+    compute spectrum. Separate frequency signs. """ 
+    N = len(data); 
+    data = prep_vctor(data, nseg, hann); 
+    freqs = np.fft.fftfreq(M,d=dt); 
+    df = 1/(dt*M); 
+    
+    spectrum = np.fft.fft(tseries,axis=0); 
+    
+    
 # Function to calculate spectrum
 def spectrum(data, dt, nseg=1, hann=True):
     """
@@ -17,25 +47,7 @@ def spectrum(data, dt, nseg=1, hann=True):
     - - Output has frequency units cycles/[units of dt].
     """
     N = len(data); 
-    data = np.nan_to_num( data, nan=np.nanmean(data)); # remove nans
-    data = signal.detrend(data[~np.isnan(data)],axis=0); # remove mean and linear trend
-    datvar = np.nanvar(data); 
-    
-    # Rearrange data into segments with 50% overlap
-    if nseg!=1:
-        distt = np.floor( N / (nseg+1)); # distance between segment starts
-        M = int(2*distt); # length of each segment
-        tseries = np.empty(( M , nseg));
-
-        for segment in range(nseg):
-            start = int((segment)*distt); end = int((segment+2)*distt); 
-            tseries[:,segment] = data[start:end]; #arrange data into matrix
-
-        if hann:
-            tseries = tseries*np.expand_dims(np.hanning(M),axis=1); 
-    else: 
-        tseries = data;
-
+    tseries, datvar = prep_vector(data, nseg, hann); 
     # Frequency info before getting spectrum
     freqs = np.fft.rfftfreq( M, d=dt); 
     freqs = freqs[1:]; # remove freq = 0 (mean)
