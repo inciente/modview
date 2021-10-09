@@ -23,7 +23,19 @@ def prep_vector(data, nseg, hann=True);
     return tseries, datvar
 
 def take_spec(data_mat,ax=0,real=True):
+    complex = ( np.sum( np.iscomplex(data_mat) ))>1;
     transform = np.fft.fft(data_mat,axis=ax); 
+    if complex: 
+        transform = np.fft.fft( data_mat, axis=ax); 
+        
+        # Extract positive and negative frequencies
+        # save separately.
+        # use mod of len(data_mat) to know how to slice transform.
+        
+    else: 
+        transform = np.fft.rfft( data_mat, axis=ax); # use rfft
+    	transform = np.conj(transform)*transform; 
+    	# now normalize     
     	
 def rotary_spectrum(data, dt, nseg=1, hann=True):
     """ Take in a row/vector of complex numbers (data), make segments and 
