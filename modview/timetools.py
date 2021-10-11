@@ -4,37 +4,51 @@ from scipy.stats import chi2
 import numpy as np
 import cmath
 
-
-def prep_vector(data, nseg, hann=True); 
-    data = np.nan_to_num(data, nan=np.nanmean(data)); # remove nans
-    data = signal.detrend(data[~np.isnan(data)],axis=0); # remove mean and linear trend
-    datvar = np.nanvar(data); 
+class spectra: 
+    def __init__(self, data, dt):
+    # dt is a list of floats with sampling interval along dimensions of data. 
+    # use np.nan for dimensions without a sampling interval
+        self.data = data; 
+        self.dt = dt; 
+        self.freqs = [np.fft.fftfreqs(data.shape[kk], d=dt[kk]) for kk in range(len(data.shape))];
+        self.psd = []; 
+        
+        if len(dt) != len(data.shape):
+            print('check number of dt entries and data dimensions')
+            pass
+        
+    def prep_vector(self, vector, nseg, hann=True); 
+        data = np.nan_to_num(vector, nan=np.nanmean(vector)); # remove nans
+        data = signal.detrend(vector[~np.isnan(vector)],axis=0); # demean and detrend
+        datvar = np.nanvar(vector); # variance
     
-    if nseg>1:
-		N = len(data);
-        distt = np.floor(N/(nseg+1)); # distance between segment starts
-        M = int(2*distt); # length of each sigment
-        tseries = np.empty((M, nseg)); 
-        for segment in range(nseg):
-            start = int((segment)*distt); end = int((segument+2)*distt); 
-            tseries[:,segment] = data[start:end]; #arrange data into matrix
-        if hann=True: 
-            tseries = tseries*np.expand_dims(np.hanning(M),axis=1); 			
-    return tseries, datvar
+        if nseg>1:
+	  	    N = len(vector);
+            distt = np.floor(N/(nseg+1)); # distance between segment starts
+            M = int(2*distt); # length of each sigment
+            tseries = np.empty((M, nseg)); 
+            for segment in range(nseg):
+                start = int((segment)*distt); end = int((segument+2)*distt); 
+                tseries[:,segment] = vector[start:end]; #arrange data into matrix
+            if hann=True: 
+                tseries = tseries*np.expand_dims(np.hanning(M),axis=1); 			
+        return tseries, datvar
 
-def take_spec(data_mat,ax=0,real=True):
-    complex = ( np.sum( np.iscomplex(data_mat) ))>1;
-    transform = np.fft.fft(data_mat,axis=ax); 
-    if complex: 
-        transform = np.fft.fft( data_mat, axis=ax); 
+    def spec_1d(self, vector, nseg=1, hann=True, separate=False):
+        # Extract vector at index along ax. Prepare it and then calculate psd
+        N = self.data.shape[ax];
+        complex = np.sum( np.is_complex(vector))>1;
+        if complex:
+            transform = np.fft.fft( vector, axis=ax); 
+        else: 
+            transform = np.fft.rfft( vector, axis=ax); 
+            
+        transform = np.take(transform, np.arange(1,N-1,1),axis=ax); # erase freq 0
+        if complex:
+            pass
+        transform = transform * np.conj(transform);
         
-        # Extract positive and negative frequencies
-        # save separately.
-        # use mod of len(data_mat) to know how to slice transform.
-        
-    else: 
-        transform = np.fft.rfft( data_mat, axis=ax); # use rfft
-    	transform = np.conj(transform)*transform; 
+     
     	# now normalize     
     	
 def rotary_spectrum(data, dt, nseg=1, hann=True):
