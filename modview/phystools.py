@@ -1,5 +1,6 @@
 import numpy as np; import xarray as xr; import pandas as pd; 
 import sympy as sym;
+from sympy.utilities.lambdify import lambdify, implemented_function
 
 def lon_to_x(lon, lat):
     x = lon*110e3*np.cos(np.mean(lat)); x = x - np.mean(x);
@@ -56,8 +57,11 @@ class internal_wave:
     
     @property
     def fk(self):
-        print('getting wave frequency and wavenumbers')
         return self._fk
+    
+    def fk_sym(self):
+        wave_properties = [(sym.symbols(key),value) for key, value in self._fk.items()]
+        return wave_properties
     
     @fk.setter
     def fk(self, wave_properties):
@@ -89,7 +93,10 @@ class internal_wave:
                 print('Incompatible values: imaginary wavenumber');
                 pass
 
-    def dispersion_relation(self):
+    def dispersion_relation(self, numeric=False):
+        #if numeric:
+            
+            
         # Symbolic representation of dispersion relation
         omega, kx, ky, kz = sym.symbols('omega kx ky kz')
         norm = kx**2 + ky**2 + kz**2;
@@ -98,5 +105,7 @@ class internal_wave:
         return relation
     
     def group_vel(self, direction='z'):   
-        pass
-
+        kz = sym.symbols('kz');
+        cg_z = sym.diff(self.dispersion_relation(),kz)
+        cg_val = sym.lambdify(self.fk_sym(),cg_z)
+        return cg_val
