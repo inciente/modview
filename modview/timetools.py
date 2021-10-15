@@ -3,52 +3,73 @@ import scipy.signal as signal
 from scipy.stats import chi2
 import numpy as np
 import cmath
+import datetime
 
-
-def prep_vector(data, nseg, hann=True); 
-    data = np.nan_to_num(data, nan=np.nanmean(data)); # remove nans
-    data = signal.detrend(data[~np.isnan(data)],axis=0); # remove mean and linear trend
-    datvar = np.nanvar(data); 
-    
-    if nseg>1:
-		N = len(data);
-        distt = np.floor(N/(nseg+1)); # distance between segment starts
-        M = int(2*distt); # length of each sigment
-        tseries = np.empty((M, nseg)); 
-        for segment in range(nseg):
-            start = int((segment)*distt); end = int((segument+2)*distt); 
-            tseries[:,segment] = data[start:end]; #arrange data into matrix
-        if hann=True: 
-            tseries = tseries*np.expand_dims(np.hanning(M),axis=1); 			
-    return tseries, datvar
-
-def take_spec(data_mat,ax=0,real=True):
-    complex = ( np.sum( np.iscomplex(data_mat) ))>1;
-    transform = np.fft.fft(data_mat,axis=ax); 
-    if complex: 
-        transform = np.fft.fft( data_mat, axis=ax); 
+class spectra: 
+    def __init__(self, data, dt):
+    # dt is a list of floats with sampling interval along dimensions of data. 
+    # use np.nan for dimensions without a sampling interval
+        self.data = data; 
+        self.dt = dt;
+        self.psd = dict(); 
+        if len(dt) != len(data.shape):
+            print('check number of dt entries and data dimensions')
+            pass
         
-        # Extract positive and negative frequencies
-        # save separately.
-        # use mod of len(data_mat) to know how to slice transform.
-        
-    else: 
-        transform = np.fft.rfft( data_mat, axis=ax); # use rfft
-    	transform = np.conj(transform)*transform; 
-    	# now normalize     
-    	
-def rotary_spectrum(data, dt, nseg=1, hann=True):
-    """ Take in a row/vector of complex numbers (data), make segments and 
-    compute spectrum. Separate frequency signs. """ 
-    N = len(data); 
-    data = prep_vctor(data, nseg, hann); 
-    freqs = np.fft.fftfreq(M,d=dt); 
-    df = 1/(dt*M); 
+    def prep_vector(self, vector, nseg, hann=True, ax=0):
+        data = np.nan_to_num(vector, nan=np.nanmean(vector)); # remove nans
+        data = signal.detrend(data,axis=ax); # demean and detrend
+        datvar = np.nanvar(vector); # variance
     
-    spectrum = np.fft.fft(tseries,axis=0); 
+        if nseg>1:
+            N = len(vector);
+            distt = np.floor(N/(nseg+1)); # distance between segment starts
+            M = int(2*distt); # length of each sigment
+            tseries = np.empty((M, nseg)); 
+            for segment in range(nseg):
+                print(segment)
+                start = int((segment)*distt); end = int((segment+2)*distt); 
+                tseries[:,segment] = data[start:end]; #arrange data into matrix
+            if hann==True: 
+                tseries = tseries*np.expand_dims(np.hanning(M),axis=1);
+        else: 
+            tseries = data;    			
+        return tseries, datvar
+
+    def get_power(self, data_mat, ax=0):
+        N = self.data.shape[ax];
+        comp = np.sum( np.iscomplex(data_mat))>1;
+        if comp:
+            transform = np.fft.fft( data_mat, axis=ax); 
+        else: 
+            transform = np.fft.rfft( data_mat, axis=ax); 
+        transform = np.delete( transform, 0, axis=ax); # remove freq=0
+        transform = np.real(transform * np.conj(transform)); # calc power
+        return transform
+        
+    def spec_vec(self, vector, dt, trans_ax, nseg=1, hann=True, freqs=False):
+        N = len(vector); df = 1/(N*dt); 
+        data, datvar = self.prep_vector(vector, nseg, hann, ax=trans_ax); 
+        power = self.get_power(data, ax=trans_ax); 
+        print(power.shape)
+        if len(power.shape)>1 and power.shape[1]>1:
+            power = np.mean( power, axis=1); 
+        powvar = np.sum(power,axis=trans_ax)*df; 
+        power = power / powvar * datvar; # normalize
+        return power
+    
+    def err_bars(self, degfred):
+        err_low = chi2.isf(0.975, degsfred); 
+        err_hi = chi2.isf(0.025, degsfred); 
+        err_bar = np.array([err_low, err_high]); 
+        return err_bar
+
+    def calc_spec(self, ax, indices, nseg=1, hann=True):
+        pass
     
     
 # Function to calculate spectrum
+'''
 def spectrum(data, dt, nseg=1, hann=True):
     """
     Separate the timeseries "data" into "nseg" separate segments, calculate their
@@ -80,7 +101,7 @@ def spectrum(data, dt, nseg=1, hann=True):
     
     result = {'spectrum':avg_spectrum,'freqs':freqs,'df':df,'errbar':err_bar};
     return result
-	
+'''	
 
 def powerspec(timeseries, dt, timeax=0, hann=True):
 	"""

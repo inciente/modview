@@ -13,6 +13,21 @@ def lat_to_y(lat):
 def inertial_freq(lat):
     f = 4*np.pi*np.sin(lat/180*np.pi)/24/3600;
     return f
+    
+def wkb_stretch(z, N2, MLD):
+    belowML = z>MLD; 
+    N = np.sqrt(N2); 
+    sratio = np.nanmean(N[belowML])/N; 
+    sratio = pd.DataFrame(sratio); # to get rolling mean
+    sratio = sratio.rolling(10, min_periods=1).mean().to_numpy(); 
+    
+    vel_factor = np.sqrt(sratio); # velocity scaling
+    
+    tot_depth = z[~belowML]; # stretch vertical coordinate
+    stretched = np.expand_dims( np.append(0, np.diff(z)), axis=1); 
+    stretched = np.cumsum( stretched[belowML]/sratio[belowML])+MLD; # vertical integration
+    stretched = np.append(tot_depth, stretched); 
+    return sfactor, stretched
    
 def geostrophy(lat, lon, depth, density, ssh='none'):
     # Calculate geostrophic shear/currents from density along a transect.
@@ -82,12 +97,10 @@ class internal_wave:
                 test_input.append( (sym.symbols(key), value) ) # values known
         try_func = test_func.subs(test_input);        
         if solve_for == []: # if all values are known
-		    # evaluate try_func
             if try_func == 0:
                 self._fk = wave_properties;
             else:
                 print('wave properties not compliant with dispersion relationship')
-                pass
         else:	
             solution = sym.solve(try_func, solve_for) # use known values to infer missing values
         
@@ -119,7 +132,7 @@ class internal_wave:
             relation = - omega**2 + self.Nsquared*kh_squared/norm_squared \
                     + inertial_freq(self.lat)**2 * kz**2 / norm_squared; 
         return relation
-    
+
     def group_vel(self, direction=['z'], numeric=False, kunze=False):   
         cg_vec = [np.nan, np.nan, np.nan];
         kx,ky,kz = sym.symbols('kx ky kz'); # symbols for sympy functions
@@ -173,3 +186,17 @@ class internal_wave:
             print(omega_0)
         else:
             print('wave is not near-inertial')
+    
+    def internal_tide(self,component=['M2','D1']); 
+        # Set f_k to represent an internal tide
+        pass
+        
+
+    def plane_wave(self, timevec, depth, phase, **kwargs):
+        if isinstance(timevec, datetime.datetime):
+            timevec = [(timevec[kk] - timevec[0]).total_seconds() for kk in range(len(timevec))];
+        time_phase = np.expand_dims( self.fk['omega']*timevec, axis=1); 
+        depth_phase = np.expand_dims( self.fk['kz']*depth, axis=0); 
+        sine = np.sin( depth_phase - time_phase + phase); 
+        return sine
+
