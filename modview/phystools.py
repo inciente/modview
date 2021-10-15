@@ -47,7 +47,6 @@ class internal_wave:
     
     @property
     def Nsquared(self):
-        print('getting N2');
         return self._Nsquared
     
     @Nsquared.setter
@@ -62,6 +61,12 @@ class internal_wave:
     def fk_sym(self):
         wave_properties = [(sym.symbols(key),value) for key, value in self._fk.items()]
         return wave_properties
+    
+    def fk_vals(self): 
+        wave_properties = self.fk;
+        kx = wave_properties['kx']; ky = wave_properties['ky']; 
+        kz = wave_properties['kz']; omega = wave_properties['omega'];
+        return omega, kx, ky, kz
     
     @fk.setter
     def fk(self, wave_properties):
@@ -88,24 +93,83 @@ class internal_wave:
         
             if solution[0].is_real:
                 wave_properties[var_solved[0]] = solution[0];
+                length = 2*np.pi/solution[0]; 
+                print('Missing parameter ' + var_solved[0] + '= 2*pi/' \
+                + '{:5.2f}'.format(length) + ' added successfully')
                 self._fk = wave_properties; # update wave properties
             else:
                 print('Incompatible values: imaginary wavenumber');
                 pass
 
     def dispersion_relation(self, numeric=False):
-        #if numeric:
+        if numeric: # evaluate terms in the dispersion relation
+            wave_properties = self.fk;
+            kh_squared = wave_properties['kx']**2 + wave_properties['ky']**2;
+            norm_squared = kh_squared + wave_properties['kz']**2; 
+            om2 = wave_properties['omega']**2; 
+            t1 = self.Nsquared * kh_squared / norm_squared;
+            t2 = inertial_freq(self.lat)**2 * wave_properties['kz']**2 / norm_squared;
             
+            relation = [[om2, t1, t2],['omega^2','N^2 kh^2/k^2','f^2 kz^2/k^2']]; 
             
-        # Symbolic representation of dispersion relation
-        omega, kx, ky, kz = sym.symbols('omega kx ky kz')
-        norm = kx**2 + ky**2 + kz**2;
-        relation = - omega**2 + self.Nsquared*(kx**2 + ky**2)/norm \
-                    + inertial_freq(self.lat)**2 * kz**2 / norm; 
+        else:    # Symbolic representation of dispersion relation
+            omega, kx, ky, kz = sym.symbols('omega kx ky kz')
+            kh_squared = kx**2 + ky**2;
+            norm_squared = kh_squared + kz**2;
+            relation = - omega**2 + self.Nsquared*kh_squared/norm_squared \
+                    + inertial_freq(self.lat)**2 * kz**2 / norm_squared; 
         return relation
     
-    def group_vel(self, direction='z'):   
-        kz = sym.symbols('kz');
-        cg_z = sym.diff(self.dispersion_relation(),kz)
-        cg_val = sym.lambdify(self.fk_sym(),cg_z)
-        return cg_val
+    def group_vel(self, direction=['z'], numeric=False, kunze=False):   
+        cg_vec = [np.nan, np.nan, np.nan];
+        kx,ky,kz = sym.symbols('kx ky kz'); # symbols for sympy functions
+        disp_rel = self.dispersion_relation();
+        
+        if 'x' in direction: # compute only necessary derivatives
+            cg_vec[0] = sym.diff(disp_rel,kx)
+        if 'y' in direction:
+            cg_vec[1] = sym.diff(disp_rel,ky)
+        if 'z' in direction:
+            cg_vec[2] = sym.diff(disp_rel,kz)
+        
+        if numeric: # substitute wave properties into 
+            wave_input = self.fk_sym();
+            if 'x' in direction:
+                cg_vec[0] = cg_vec[0].subs(wave_input);
+            if 'y' in direction: 
+                cg_vec[1] = cg_vec[1].subs(wave_input);
+            if 'z' in direction: 
+                cg_vec[2] = cg_vec[2].subs(wave_input); 
+        return cg_vec
+
+    def is_niw(self, threshold=0.2):
+        inertial = inertial_freq(self.lat); 
+        freq = self.fk['omega']; 
+        ratio = freq/inertial; 
+        if ratio > (1-threshold) and ratio < (1+threshold):
+            return True
+        else: 
+            return False
+        
+    def setup_kunze(self, dudy, dvdx, dudz=0, dvdz=0, dudx=0, dvdy=0):    
+        # input necessary: dU/dz, dV/dz, dU/dy, dV/dx
+        if self.is_niw():
+            f_loc = inertial_freq(self.lat); 
+            vort = dvdx - dudy; 
+            f_eff = f_loc + 0.5*vort;
+            omega, kx, ky, kz = self.fk_vals(); 
+            kh_squared = kx**2 + ky**2; 
+            omega_0 = f_eff + ( # term (i)
+            # term (ii)
+                 + self.Nsquared*kh_squared/(2*f_loc*kz**2)) + (
+            # term (iii)
+                  1/kz*( dudz*ky - dvdz*kx)) + ( 
+            # term (iv)      
+                  1j*( vort/2/f_loc/kz*(dudz*kx + dvdz*ky)  
+            # term (v)
+                    + self.Nsquared/(2*f_loc**2*kz**2)*( 
+                         dudx*ky**2 - (dudy + dvdx)*kx*ky + 
+                         dvdy*kx**2 ) ))  
+            print(omega_0)
+        else:
+            print('wave is not near-inertial')
