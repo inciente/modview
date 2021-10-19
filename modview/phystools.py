@@ -1,5 +1,5 @@
 import numpy as np; import xarray as xr; import pandas as pd; 
-import sympy as sym;
+import sympy as sym; import gsw
 from sympy.utilities.lambdify import lambdify, implemented_function
 
 def lon_to_x(lon, lat):
@@ -164,39 +164,99 @@ class internal_wave:
         else: 
             return False
         
-    def setup_kunze(self, dudy, dvdx, dudz=0, dvdz=0, dudx=0, dvdy=0):    
+    def setup_kunze(self, geost_field, which_terms=[1,2,3]):    
         # input necessary: dU/dz, dV/dz, dU/dy, dV/dx
-        if self.is_niw():
+        if ~self.is_niw():
+            print('wave is not near-inertial')
+            return
+        else:
             f_loc = inertial_freq(self.lat); 
             vort = dvdx - dudy; 
             f_eff = f_loc + 0.5*vort;
             omega, kx, ky, kz = self.fk_vals(); 
             kh_squared = kx**2 + ky**2; 
-            omega_0 = f_eff + ( # term (i)
-            # term (ii)
-                 + self.Nsquared*kh_squared/(2*f_loc*kz**2)) + (
-            # term (iii)
-                  1/kz*( dudz*ky - dvdz*kx)) + ( 
-            # term (iv)      
-                  1j*( vort/2/f_loc/kz*(dudz*kx + dvdz*ky)  
-            # term (v)
-                    + self.Nsquared/(2*f_loc**2*kz**2)*( 
-                         dudx*ky**2 - (dudy + dvdx)*kx*ky + 
-                         dvdy*kx**2 ) ))  
-            print(omega_0)
-        else:
-            print('wave is not near-inertial')
+            # make list with terms in omega_0
+            omega_0_terms = [0, f_eff, # terms 0, i
+                       self.Nsquared*kh_squared/(2*f_loc*kz**2), # term ii
+                       1/kz*( dudz*ky - dvdz*kx), # term iii
+                       1j*( vort/2/f_loc/kz*(dudz*kx + dvdz*ky)),  # term iv
+                       self.Nsquared/(2*f_loc**2*kz**2)*( \
+                          dudx*ky**2 - (dudy + dvdx)*kx*ky + dvdy*kx**2 )]; # term v   
+            omega_0 = np.sum([omega_0_terms[kk] for kk in range(6) if kk in which_terms]);
+              
+            
+                    
     
-    def internal_tide(self,component=['M2','D1']); 
+    def internal_tide(self,component=['M2','D1']): 
         # Set f_k to represent an internal tide
         pass
         
 
     def plane_wave(self, timevec, depth, phase, **kwargs):
         if isinstance(timevec, datetime.datetime):
-            timevec = [(timevec[kk] - timevec[0]).total_seconds() for kk in range(len(timevec))];
+            timevec = [(timevec[kk] - timevec[0]).total_seconds() \
+                                        for kk in range(len(timevec))];
         time_phase = np.expand_dims( self.fk['omega']*timevec, axis=1); 
         depth_phase = np.expand_dims( self.fk['kz']*depth, axis=0); 
         sine = np.sin( depth_phase - time_phase + phase); 
         return sine
 
+class geostrophic_field:
+    def __init__(self, CT, SAL, P, ssh='none'):
+        # all inputs are xr.dataarrays. SSH may have different coordinates
+        self.CT = CT; 
+        self.SAL = SAL; 
+        self.P = P;
+        self.density = gsw.density.rho(self.SAL, self.CT, self.P); 
+        self._streamfunction = []; 
+        self.ssh = ssh; 
+    
+    @property
+    def streamfunction(self):
+        return self._streamfunction
+    
+    @streamfunction.setter
+    def streamfunction(self,random_string): 
+        # CURRENTLY RETURNS ALL NANS. CHECK WHAT'S WRONG
+        p_ax = self.find_axis(self.CT, self.P); print(p_ax)
+        p_mat = self.upsize_p(self.CT); print(self.CT.shape)
+        DH = gsw.geo_strf_dyn_height(self.SAL, self.CT, p_mat, axis=p_ax);
+        DH = xr.DataArray(data=DH, dims=self.CT.dims, coords=self.CT.coords); 
+        self._streamfunction = DH;  
+        
+    def upsize_p(self, var):
+        # Repeat pressure vector to match the shape of var
+        p_axis = self.find_axis(var, self.P);
+        new_p = np.ones(var.shape); 
+        # Reshape pressure to populate columns in new_p volume
+        ax_to_create = [kk for kk in range(len(var.shape)) if kk != p_axis]; 
+        p_col = np.expand_dims( self.P.values, tuple(ax_to_create) );
+        new_p = new_p * p_col; 
+        return new_p
+        
+        
+    def subsel(self, variable, location, loc_format='coords'):  
+        # location  is a dictionary of lists
+        if loc_format == 'coords':
+            var_subsel = variable; # save XR object to be sliced
+            for key in location:
+                var_subsel = var_subsel.sel(key=location[key], method='nearest');   
+    def find_axis(self, var, vec):
+        check = [var.shape[kk] == len(vec) for kk in range(len(var.shape))]; 
+        axis = [i for i, x in enumerate(check) if x]; 
+        if len(axis)>1:
+            print('dimensions agree along more than one axis')
+            return
+        else:
+            return axis[0]
+
+    def currents(self, location, loc_format='coords', calc_gradients=False):
+        # location must be a dictionary with format {'lat':[12.3,12.5],'lon':[145,148],
+        # 'p':[250, 300]; 
+
+        # Now that we have extracted only the necessary portion of data, we need to
+        # get spatial derivatives of the stream function to return uv. 
+        U = -sf_subsel.differentiate(coord=lat)/110e3;
+        V = sf_subsel.differentiate(coord=lon)/110e3/ \
+               np.cos(np.nanmean(location['lat'])/180*np.pi); 
+        return U, V
