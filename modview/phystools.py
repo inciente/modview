@@ -14,6 +14,18 @@ def inertial_freq(lat):
     f = 4*np.pi*np.sin(lat/180*np.pi)/24/3600;
     return f
     
+def hydrostasy(rho, zlevels, ssh=0, z_req=np.nan, p_axis=0, p_ref = 0):
+    # Take in n-dimensional object rho and integrate pressure 
+    # ssh represents local values at locations of density data
+    dz = np.diff(zlevels)
+    pressure = np.empty(rho.shape); 
+    pressure[:] = np.nan;
+    for 
+    pressure[0] = (ssh + zlevels[0])*g*min(rho); 
+    
+    pressure[1:] = [dz[i]*() ]
+    return 
+    
 def wkb_stretch(z, N2, MLD):
     belowML = z>MLD; 
     N = np.sqrt(N2); 
@@ -55,9 +67,10 @@ def geostrophy(lat, lon, depth, density, ssh='none'):
         drho = drho / np.gradient(x); 
 
 class internal_wave:
-    def __init__(self, lat, N2=1e-5 ):
+    def __init__(self, lon, lat, depth, N2=1e-5 ):
         self._fk = dict();  # vector [freq, kx, ky, kz].
         self._Nsquared = N2;
+        self.position = [];
         self.lat = lat;
     
     @property
@@ -72,16 +85,6 @@ class internal_wave:
     @property
     def fk(self):
         return self._fk
-    
-    def fk_sym(self):
-        wave_properties = [(sym.symbols(key),value) for key, value in self._fk.items()]
-        return wave_properties
-    
-    def fk_vals(self): 
-        wave_properties = self.fk;
-        kx = wave_properties['kx']; ky = wave_properties['ky']; 
-        kz = wave_properties['kz']; omega = wave_properties['omega'];
-        return omega, kx, ky, kz
     
     @fk.setter
     def fk(self, wave_properties):
@@ -113,7 +116,21 @@ class internal_wave:
             else:
                 print('Incompatible values: imaginary wavenumber');
                 pass
+    
+    def fk_sym(self):
+        wave_properties = [(sym.symbols(key),value) for key, value in self._fk.items()]
+        return wave_properties
+    
+    def fk_vals(self): 
+        wave_properties = self.fk;
+        kx = wave_properties['kx']; ky = wave_properties['ky']; 
+        kz = wave_properties['kz']; omega = wave_properties['omega'];
+        return omega, kx, ky, kz
 
+    def set_position(self, lon, lat, depth):
+        self.position = [lon, lat, depth]; 
+        self.lat = lat; 
+        
     def dispersion_relation(self, numeric=False):
         if numeric: # evaluate terms in the dispersion relation
             wave_properties = self.fk;
@@ -164,26 +181,48 @@ class internal_wave:
         else: 
             return False
         
-    def setup_kunze(self, geost_field, which_terms=[1,2,3]):    
+    def kunze_omega(self, geost_field, which_terms=[1,2,3], numeric=True):    
         # input necessary: dU/dz, dV/dz, dU/dy, dV/dx
         if ~self.is_niw():
             print('wave is not near-inertial')
             return
         else:
-            f_loc = inertial_freq(self.lat); 
-            vort = dvdx - dudy; 
-            f_eff = f_loc + 0.5*vort;
-            omega, kx, ky, kz = self.fk_vals(); 
-            kh_squared = kx**2 + ky**2; 
-            # make list with terms in omega_0
-            omega_0_terms = [0, f_eff, # terms 0, i
+            if numeric:
+                f_loc = inertial_freq(self.lat); 
+                dudz, dvdz = geost_field.thermal_wind();
+                # write method to get vorticity from density and ssh (their laplacian)
+                vort = dvdx - dudy; 
+                f_eff = f_loc + 0.5*vort;
+                omega, kx, ky, kz = self.fk_vals(); 
+                kh_squared = kx**2 + ky**2; 
+                # make list with terms in omega_0
+                om_terms = [0, f_eff, # terms 0, i
                        self.Nsquared*kh_squared/(2*f_loc*kz**2), # term ii
-                       1/kz*( dudz*ky - dvdz*kx), # term iii
+                       1/kz*( dudz*ky - dvdz*kx)] # term iii
                        1j*( vort/2/f_loc/kz*(dudz*kx + dvdz*ky)),  # term iv
                        self.Nsquared/(2*f_loc**2*kz**2)*( \
-                          dudx*ky**2 - (dudy + dvdx)*kx*ky + dvdy*kx**2 )]; # term v   
-            omega_0 = np.sum([omega_0_terms[kk] for kk in range(6) if kk in which_terms]);
-              
+                       dudx*ky**2 - (dudy + dvdx)*kx*ky + dvdy*kx**2 )]; # term v   
+                # intrinsic frequency
+                omega_0 = np.sum([om_terms[kk] for kk in range(6) if kk in which_terms]);
+                # account for doppler shift
+                omega = om_terms[1] + om_terms[2] + om_terms[3] \
+                        + kx*u + ky*v; # equation 14, assume w = 0
+            else:
+				# use sympy
+                wave_p = self.fk_sym();
+                dudy, dvdx, dudz, dvdz = sym.symbols('dudy dvdx dudz dvdz');
+                pass
+                #om_terms = [0, ]
+        return omega
+                 
+    def solve_kunze(self, geostr, timevec):
+		# use wave properties as initial condition and save r, k 
+		# solutions at times in timevec 
+		# invoke setup_kunze
+		k_0 = self.fk_vals(); 
+		r_0 = self. 
+		# use scipy ode solvers to integrate dk/dt        
+        
             
                     
     
@@ -208,22 +247,42 @@ class geostrophic_field:
         self.SAL = SAL; 
         self.P = P;
         self.density = gsw.density.rho(self.SAL, self.CT, self.P); 
-        self._streamfunction = []; 
-        self.ssh = ssh; 
+        self.p_axis = self.find_axis(self.SAL, self.P); 
+        self.psi = self.streamfunction();
+        self.ssh = ssh;
     
-    @property
-    def streamfunction(self):
-        return self._streamfunction
-    
-    @streamfunction.setter
     def streamfunction(self,random_string): 
         # CURRENTLY RETURNS ALL NANS. CHECK WHAT'S WRONG
-        p_ax = self.find_axis(self.CT, self.P); print(p_ax)
+        p_ax = self.p_axis;        
         p_mat = self.upsize_p(self.CT); print(self.CT.shape)
         DH = gsw.geo_strf_dyn_height(self.SAL, self.CT, p_mat, axis=p_ax);
         DH = xr.DataArray(data=DH, dims=self.CT.dims, coords=self.CT.coords); 
         self._streamfunction = DH;  
+    
+    def thermal_wind(self, which=['dudz','dvdz']):		  
+		mean_lat = np.mean(self.density.lat.values)
+        # Return g/f/rho_0 * (drho/dx, drho/dy)
+        drhodx = self.density.differentiate(coord='lon'); 
+        drhodx = drhodx /110e3 /np.cos( np.radians( mean_lat ) );
         
+        drhody = self.density.differentiate(coord='lat'); 
+        drhody = drhody / 110e3; 
+        
+        dudz = 9.81/1023/inertial_freq(mean_lat) * drhody
+        dvdz = - 9.81/1023/inertial_freq(mean_lat) * drhodx
+        return dudz, dvdz
+    
+    def vorticity(self):
+        #vort_0 = laplacian of ssh + function of laplacian of density. 
+        pass
+         
+    def pressure(self, use_ssh=False):
+        if use_ssh:
+            print('interpolation functions needed')
+        else:
+            pass
+    
+      
     def upsize_p(self, var):
         # Repeat pressure vector to match the shape of var
         p_axis = self.find_axis(var, self.P);
