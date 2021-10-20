@@ -25,7 +25,7 @@ def hydrostasy(rho, zlevels, ssh=0, z_req=np.nan, p_axis=0, p_ref = 0):
     
     pressure[1:] = [dz[i]*() ]
     return 
-    
+		
 def wkb_stretch(z, N2, MLD):
     belowML = z>MLD; 
     N = np.sqrt(N2); 
@@ -220,7 +220,8 @@ class internal_wave:
 		# solutions at times in timevec 
 		# invoke setup_kunze
 		k_0 = self.fk_vals(); 
-		r_0 = self. 
+		r_0 = self.position; # lon, lat, depth
+		 
 		# use scipy ode solvers to integrate dk/dt        
         
             
@@ -273,15 +274,30 @@ class geostrophic_field:
         return dudz, dvdz
     
     def vorticity(self):
+		# Calculate vorticity as a function of the laplacians of ssh and density.
+		d_shape = self.density.shape;
+		ssh_shape = np.take(self.density,0,self.p_axis).shape; # shape of density without depth dimension 
+		if self.ssh != 'none':
+            dsdx = self.ssh.differentiate(coord='lon'); 
+            dsdy = self.ssh.differentiate(coord='lat'); 
+            vort_ssh = dsdx.differentiate(coord='lon') + dsdy.differentiate(coord='lat'); # laplacian
+            vort_ssh = vort_ssh.sel(lat=self.density.lat, method='nearest'); 
+            vort_ssh = vort_ssh.sel(lon=self.density.lon, method='nearest'); # interpolate to coordinates of density data
+        else: 
+            vort_ssh = np.zeros(ssh_shape); 
+		
         #vort_0 = laplacian of ssh + function of laplacian of density. 
         pass
          
     def pressure(self, use_ssh=False):
-        if use_ssh:
-            print('interpolation functions needed')
+        if use_ssh: # barotropic component
+            eta = self.ssh.sel(lat=self.density.lat, method='nearest'); 
+            eta = eta.sel(lon=self.density.lon, method='nearest'); 
         else:
             pass
-    
+        dens_pres = 9.81*self.density.integrate(coord='p'); # effect of stratification
+        pres = 9.81*1023*eta + dens_pres; 
+        return pres
       
     def upsize_p(self, var):
         # Repeat pressure vector to match the shape of var
