@@ -284,7 +284,10 @@ class geostrophic_field:
         elif use=='rho':
             myvar = self.density; 
             c0 = -c0 / 1023; 
-        var_here = self.var_around( myvar, location, edge=edge); 
+        if location='none':
+            var_here = myvar; 
+        else:
+            var_here = self.var_around( myvar, location, edge=edge); 
         u_here = -c0 * var_here.differentiate(coord='lat')/110e3; #deta/dy
         v_here = c0 * var_here.differentiate(coord='lon')/110e3 \
                  /np.cos(np.radians(location['lat'])); #deta/dx
@@ -374,3 +377,25 @@ class geostrophic_field:
         V = sf_subsel.differentiate(coord=lon)/110e3/ \
                np.cos(np.nanmean(location['lat'])/180*np.pi); 
         return U, V
+
+def kunze_1985(niws, geost, timevec):
+    # Add functions necessary to solve dkdt and drdt using the properties of 
+    # internal waves. 
+    
+    # Consider allowing to use sets of niws, so computing dedicated to geos can be
+    # reused for many niws. 
+    dvdx, dudy = geost.vorticity(location='none')
+    
+    # Import terms of geostrophic shear: symbols and numerical grids. 
+    
+    # Allow access to a method that calculates omega according to kunze
+    # For each wave
+    # ------ calculate omega (starting condition)
+    # ------ dkdt : evaluate grad(omega) at niw.fk (each timestep)
+    # ------ drdt : evaluate group velocity (each timestep) 
+    # ------ solver: allow access to niw.fk
+    
+
+
+
+
