@@ -5,6 +5,62 @@ import numpy as np
 import cmath
 import datetime
 
+def segment_vector(vector, nseg, hann=False, detrend=False, axis=0):
+    # Replace nans for mean of vector 
+    data = np.nan_to_num(vector, nan=np.nanmean(vector); 
+    if detrend:
+        data = signal.detrend(data,axis=ax)
+    datvar = np.nanvar(vector) # variance
+    if nseg>1:
+        N = len(vector)
+        distt = np.floor(N/(nseg+1))
+        M = int(2*distt); 
+        tseries = np.empty((M,nseg)); 
+        for segment in range(nseg):
+        start = int((segment)*distt); end = int((segment+2)*distt); 
+        tseries[:,segment] = data[start:end]; #arrange data into matrix
+            if hann==True: 
+                tseries = tseries*np.expand_dims(np.hanning(M),axis=1);
+        else:
+            # Original vector is returned with nans removed and detrended (if specified)  
+            tseries = data;    			
+        return tseries, datvar
+        
+def power_from_mat(data_mat, ax=0):
+    # Enter a 2D array and return the spectra of columns (ax=0) or rows (ax=1)
+    N = self.data.shape[ax]; # number of elements for fft
+    M = self.data.shape[np.abs(ax-1)];
+    comp = np.sum( np.iscomplex(data_mat))>1; # check if complex
+    if comp:    
+        transform = np.fft.fft( data_mat, axis=ax); 
+    else: 
+        transform = np.fft.rfft( data_mat, axis=ax); 
+    # make sure line below works for both fft and rfft 
+    transform = np.delete( transform, 0, axis=ax); # remove freq=0 
+    transform = np.real(transform * np.conj(transform)); # calc power       
+    return transform
+
+def spectrum_from_1d(vector, dt, nseg, hann=True):
+    vector = np.squeeze(vector); # avoid shape issues
+    N = len(vector); df = 1/(N*dt); 
+    
+    data, datvar = prep_vector(vector, nseg, hann); 
+    power = get_power(data, ax=trans_ax); 
+        
+    if len(power.shape)>1 and power.shape[1]>1:
+        power = np.mean( power, axis=1); 
+    powvar = np.sum(power,axis=trans_ax)*df; 
+    power = power / powvar * datvar; # normalize
+    return power
+
+def spectral_error(degsfred, cl=0.95):
+    err_low = chi2.isf(cl+(1-cl)/2, degsfred); 
+    err_hi = chi2.isf((1-cl)/2, degsfred); 
+    err_bar = np.array([err_low, err_high]); 
+    return err_bar          
+
+
+
 class spectra: 
     def __init__(self, data, dt):
     # dt is a list of floats with sampling interval along dimensions of data. 

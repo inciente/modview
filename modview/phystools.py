@@ -69,20 +69,26 @@ def geostrophy(lat, lon, depth, density, ssh='none'):
         drho = drho / np.gradient(x); 
 
 class internal_wave:
-    def __init__(self, lon, lat, depth, N2=1e-5 ):
+    def __init__(self, lon, lat, depth, t0=0,N2=1e-5 ):
         self._fk = dict();  # vector [freq, kx, ky, kz].
         self._Nsquared = N2;
         self.position = {'lon':lon, 'lat':lat,'p':depth};
+        self.t0 = t0; # when was it generated? 
         self.lat = lat;
+        # Add new method that extracts N2 from a stratification of geostrophic object. 
     
     @property
     def Nsquared(self):
         return self._Nsquared
     
     @Nsquared.setter
-    def Nsquared(self, n2):
+    def Nsquared(self, geost_field):
         # Set value to argument n2
+        # Access methods and properties of geostrophic field to extract N2 at (lon, lat).
+        n2 = mapper.var_around( geost_field.N2, self.position); 
+        # is position in the right format?
         self._Nsquared = n2;
+        
     
     @property
     def fk(self):
@@ -315,7 +321,7 @@ class geostrophic_field:
             v = mapper.middlepoint(v); 
         return u, v
 		       
-    def thermal_wind(self, location, edge=1, point=True):
+    def thermal_wind(self, location, edge=1, point=False):
         dudz, dvdz = self.eta_to_u(location, edge, use='rho');
         if point:
             dudz = mapper.middplepoint(dudz.values); 
@@ -323,7 +329,7 @@ class geostrophic_field:
          
         return dudz, dvdz
     
-    def vorticity(self, location, edge=[0,2,2], point=True):
+    def vorticity(self, location, edge=[0,2,2], point=False):
         u,v = self.flow_at(location,edge); 
         dvdx = v.differentiate(coord=lon)/110e3/np.cos(np.radians(location['lat']));
         dudy = u.differentiate(coord=lat)/110e3;  
@@ -378,15 +384,25 @@ class geostrophic_field:
                np.cos(np.nanmean(location['lat'])/180*np.pi); 
         return U, V
 
-def kunze_1985(niws, geost, timevec):
+def kunze_1985(niws, geost, slow_time, fast_time):
     # Add functions necessary to solve dkdt and drdt using the properties of 
     # internal waves. 
+    # Add two iterative cycles: one for slow time (update geostrophic fields), 
+    # another for fast time (NIW solver)
     
+    # Import terms of geostrophic shear: symbols and numerical grids.
+    u, v = geost.flow_at(location='none', point=False); 
+    dvdx, dudy = geost.vorticity(location='none', point=False);
+    dudz, dvdz = geos.thermal_wind(location='none', point=False); 
+
     # Consider allowing to use sets of niws, so computing dedicated to geos can be
     # reused for many niws. 
-    dvdx, dudy = geost.vorticity(location='none')
+    # niws object will have to include information about the energy of internal waves and when they should be seeded.
     
-    # Import terms of geostrophic shear: symbols and numerical grids. 
+        
+    # Having loaded the entire geostrophic field, we can now use mapper.var_around for each wave
+    
+     
     
     # Allow access to a method that calculates omega according to kunze
     # For each wave
