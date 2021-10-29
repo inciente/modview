@@ -245,7 +245,9 @@ class internal_wave:
         pass
         
 
-    def plane_wave(self, timevec, depth, phase, **kwargs):
+    def plane_wave(self, which_dims, phase_offset=0):
+		# which_dims is a dictionary including the name of wave arguments 
+		# along each dimension and coordinates to calculate phase. 
         if isinstance(timevec, datetime.datetime):
             timevec = [(timevec[kk] - timevec[0]).total_seconds() \
                                         for kk in range(len(timevec))];
@@ -290,7 +292,7 @@ class geostrophic_field:
         elif use=='rho':
             myvar = self.density; 
             c0 = -c0 / 1023; 
-        if location='none':
+        if location=='none':
             var_here = myvar; 
         else:
             var_here = self.var_around( myvar, location, edge=edge); 
