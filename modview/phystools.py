@@ -1,5 +1,5 @@
 import numpy as np; import xarray as xr; import pandas as pd; 
-import sympy as sym; import gsw; import mapper
+import sympy as sym; import gsw; import mapper; import datetime
 from sympy.utilities.lambdify import lambdify, implemented_function
 import importlib
 importlib.reload(mapper)
@@ -41,7 +41,7 @@ def wkb_stretch(z, N2, MLD):
     stretched = np.expand_dims( np.append(0, np.diff(z)), axis=1); 
     stretched = np.cumsum( stretched[belowML]/sratio[belowML])+MLD; # vertical integration
     stretched = np.append(tot_depth, stretched); 
-    return sfactor, stretched
+    return vel_factor, stretched
    
 def geostrophy(lat, lon, depth, density, ssh='none'):
     # Calculate geostrophic shear/currents from density along a transect.
@@ -67,6 +67,15 @@ def geostrophy(lat, lon, depth, density, ssh='none'):
         drho = drho / np.gradient(y); 
     elif solve_for == 'v':
         drho = drho / np.gradient(x); 
+        
+def ray_tracing(wave, medium, timevec):
+    i0 = wave.fk; # initial properties of wave
+    p0 = wave.position; # initial wave location
+    cg_func = wave.group_vel(); # can method be saved?
+    # need to invoke c_g functions and run them through a generic solver
+    
+    return 
+             
 
 class internal_wave:
     def __init__(self, lon, lat, depth, t0=0,N2=1e-5 ):
@@ -244,18 +253,42 @@ class internal_wave:
         # Set f_k to represent an internal tide
         pass
         
-
-    def plane_wave(self, which_dims, phase_offset=0):
-		# which_dims is a dictionary including the name of wave arguments 
-		# along each dimension and coordinates to calculate phase. 
-        if isinstance(timevec, datetime.datetime):
-            timevec = [(timevec[kk] - timevec[0]).total_seconds() \
-                                        for kk in range(len(timevec))];
-        time_phase = np.expand_dims( self.fk['omega']*timevec, axis=1); 
-        depth_phase = np.expand_dims( self.fk['kz']*depth, axis=0); 
-        sine = np.sin( depth_phase - time_phase + phase); 
-        return sine
-
+    def plane_wave(self, as_dates=True, offset=0, **kwargs):
+        # Use wave characteristics to create a multi-dimensional sinusoidal wave. 
+        # Read kwargs as if it were a coords dictionary and infer desired dimensions 
+        pos_dims = ['time','x','y','z']; 
+        if 'time' in kwargs:
+            timevec = kwargs['time'].copy(); 
+            if as_dates:
+                num_time = [(timevec[kk] - timevec[0]).total_seconds() \
+                           for kk in range(len(timevec))];
+                kwargs['time'] = num_time;   
+                
+        omega, kx, ky, kz = self.fk_vals(); # wave properties
+        sine_vals = [];  
+        for key, value in kwargs.items():
+            print(key)
+            if key == 'x': # identify dimension 
+                phase_num = kx;
+            elif key == 'y':
+                phase_num = ky;  
+            elif key == 'z':    
+                phase_num = kz; 
+            elif key == 'time':
+                phase_num = omega;
+            dim_phase = np.array(value)*phase_num 
+            sine_vals.append( np.cos(dim_phase) + 1j*np.sin(dim_phase) );
+        # Manipulate dimensions for multiplication
+        ndims = len(sine_vals); 
+        dim_lens = []; # desired shape of out
+        for kk in range(ndims):
+            dim_lens.append(len(sine_vals[kk])); 
+            expansion = tuple([jj for jj in range(ndims) if jj!=kk]) # remove dimension of data
+            sine_vals[kk] = np.expand_dims(sine_vals[kk], expansion); 
+        # Calculate wave function
+        wave_vals = np.prod(sine_vals);  
+        return wave_vals
+        
 class geostrophic_field:
     def __init__(self, CT, SAL, P, ssh='none'):
         # all inputs are xr.dataarrays. SSH may have different coordinates
