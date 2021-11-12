@@ -291,7 +291,7 @@ class internal_wave:
         # Calculate wave function
         wave_vals = np.prod(sine_vals);  
         return wave_vals
-
+        
 class geostrophic_field:
     def __init__(self, CT, SAL, P, dims='both', ssh='none'):
         # all inputs are xr.dataarrays. SSH may have different coordinates
