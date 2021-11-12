@@ -71,17 +71,17 @@ def geostrophy(lat, lon, depth, density, ssh='none'):
 def ray_tracing(wave, medium, timevec):
     i0 = wave.fk; # initial properties of wave
     p0 = wave.position; # initial wave location
-    cg_func = wave.group_vel(); # can method be saved?
+    drdt = wave.group_vel(); # can method be saved?
     # need to invoke c_g functions and run them through a generic solver
-    
+    dkdt
     return 
              
 
 class internal_wave:
-    def __init__(self, lon, lat, depth, t0=0,N2=1e-5 ):
+    def __init__(self, lat, t0=0,N2=1e-5):
         self._fk = dict();  # vector [freq, kx, ky, kz].
         self._Nsquared = N2;
-        self.position = {'lon':lon, 'lat':lat,'p':depth};
+        self.position = {'lat':lat};
         self.t0 = t0; # when was it generated? 
         self.lat = lat;
         # Add new method that extracts N2 from a stratification of geostrophic object. 
@@ -98,7 +98,6 @@ class internal_wave:
         # is position in the right format?
         self._Nsquared = n2;
         
-    
     @property
     def fk(self):
         return self._fk
@@ -237,7 +236,11 @@ class internal_wave:
                 om_terms = [0, f_loc + zeta/2, # term i
                            N2*(kx**2 + ky**2)/(2*f_loc*kz**2), # term ii
                            1/kz*(dudz*ky - dvdz*kx)]; # term iii
-                omega_0 = om_terms[1] + om_terms[2] + om_terms[3]; 
+                omega_0 = omega_0[0];
+                for kk in [1,2,3]:
+                    if kk in which_terms:
+                        omega_0 += om_terms[kk];
+
             return omega_0
                  
     def solve_kunze(self, geostr, timevec):
@@ -290,7 +293,7 @@ class internal_wave:
         return wave_vals
 
 class geostrophic_field:
-    def __init__(self, CT, SAL, P, ssh='none'):
+    def __init__(self, CT, SAL, P, dims='both', ssh='none'):
         # all inputs are xr.dataarrays. SSH may have different coordinates
         self.CT = CT; 
         self.SAL = SAL; 
@@ -313,6 +316,16 @@ class geostrophic_field:
         subsel = mapper.block_around(xr_obj, location, edge=edge); 
         return subsel
         
+    def lat_lon_deriv(self,variable, location):    
+        var_x = xr.DataArray(data=np.nan, coords=location); 
+        var_y = xr.DataArray(data=np.nan, coords=location);
+        if 'lat' in variable.dims:
+            var_y = variable.differentiate(coord='lat')/110e3;
+        if 'lon' in variable.dims:
+            var_x = variable.differentiate(coord='lon')/110e3 \
+                         / np.cos(np.radians(location['lat'])); 
+        return var_x, var_y
+        
     def eta_to_u(self, location, edge=1, use='psi', point=False):
 		# use is set to psi (streamfunction) or 'ssh'. 
 		# in both cases, we take horizontal derivatives to calculate u,v
@@ -329,10 +342,11 @@ class geostrophic_field:
             var_here = myvar; 
         else:
             var_here = self.var_around( myvar, location, edge=edge); 
-        u_here = -c0 * var_here.differentiate(coord='lat')/110e3; #deta/dy
-        v_here = c0 * var_here.differentiate(coord='lon')/110e3 \
-                 /np.cos(np.radians(location['lat'])); #deta/dx
-        if point:
+        # Differentiate over x and y.     
+        [v_here, u_here] = self.lat_lon_deriv(var_here, location); 
+        u_here = -c0 * u_here; 
+        v_here = c0 * v_here; 
+        if point: # evaluate at single point?
             u_here = mapper.middlepoint(u_here.values); 
             v_here = mapper.middlepoint(v_here.values);          
         return u_here, v_here        
@@ -343,14 +357,12 @@ class geostrophic_field:
         if self.ssh != 'none':
             # Calculate barotropic component
             u_bar, v_bar = self.eta_to_u(location, edge, use='ssh'); 
-
             u_bar = mapper.match_latlon(u_bar, u_strat); 
             v_bar = mapper.match_latlon(v_bar, v_strat); 
         else:
             u_bar = 0; v_bar = 0;
         u = u_bar + u_strat; 
         v = v_bar + v_strat; 
-        print(u.shape)
         if point==True:
             u = mapper.middlepoint(u);
             v = mapper.middlepoint(v); 
