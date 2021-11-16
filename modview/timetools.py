@@ -7,7 +7,7 @@ import datetime
 
 def segment_vector(vector, nseg, hann=False, detrend=False, axis=0):
     # Replace nans for mean of vector 
-    data = np.nan_to_num(vector, nan=np.nanmean(vector); 
+    data = np.nan_to_num(vector, nan=np.nanmean(vector)); 
     if detrend:
         data = signal.detrend(data,axis=ax)
     datvar = np.nanvar(vector) # variance
@@ -17,8 +17,8 @@ def segment_vector(vector, nseg, hann=False, detrend=False, axis=0):
         M = int(2*distt); 
         tseries = np.empty((M,nseg)); 
         for segment in range(nseg):
-        start = int((segment)*distt); end = int((segment+2)*distt); 
-        tseries[:,segment] = data[start:end]; #arrange data into matrix
+            start = int((segment)*distt); end = int((segment+2)*distt); 
+            tseries[:,segment] = data[start:end]; #arrange data into matrix
             if hann==True: 
                 tseries = tseries*np.expand_dims(np.hanning(M),axis=1);
         else:
