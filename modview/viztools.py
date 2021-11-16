@@ -9,6 +9,7 @@ class visualization:
     def __init__(self,data_dict,graphic_dict):
         self.data = data_dict;
         self.graphic = graphic_dict;
+    # What do I want from this class?
 
 
 def dateticks(axlist, axind, dts):
@@ -65,7 +66,10 @@ def plot_period(obs, dsource,variable, axes, limits,resamp='none', log=False, vi
     elif dsource == 'chipod':
         var_dat = obs.vars['chipod'][variable]
         #var_dat = var_dat.sel(z=slice(limits['z0'],limits['z1']));
-        #z_here = obs.vars['chipod']['znom'].values;
+        z_here = obs.vars['chipod']['z'];
+    elif dsource == 'Temperature':
+        var_dat = obs.vars[dsource][variable]; 
+        z_here = var_dat['depth']; 
     var_dat = var_dat.sel(time=slice(limits['t0'],limits['t1'])); # apply limits
     
     if resamp == 'none':
@@ -88,13 +92,13 @@ def plot_period(obs, dsource,variable, axes, limits,resamp='none', log=False, vi
     tvec = pd.to_datetime(var_dat.time.values)
     if viztype=='contourf':
         del viz_args['vmin'], viz_args['vmax']
-        panel=axes.contourf(tvec, var_dat.z,var_vals, **viz_args)
+        panel=axes.contourf(tvec, z_here,var_vals, **viz_args)
     elif viztype=='pcolor':
         del viz_args['levels']
-        panel = axes.pcolormesh(tvec, var_dat.z, var_vals, **viz_args)
+        panel = axes.pcolormesh(tvec, z_here, var_vals, **viz_args)
     elif viztype=='contour':
         del viz_args['vmin'], viz_args['vmax']
-        panel=axes.contour(tvec,var_dat.z, var_vals, **viz_args)
+        panel=axes.contour(tvec,z_here, var_vals, **viz_args)
     return panel
 
 
