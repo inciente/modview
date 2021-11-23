@@ -52,14 +52,8 @@ def scatter_xyz(x,y,color_var,y_offset='none',m_axis=1,vlims='auto'):
     sf = plt.scatter(x2plot, y2plot, c=c2plot, vmin=vlims[0], vmax=vlims[1]); 
     return sf
     
-    
-def plot_period(obs, dsource,variable, axes, limits,resamp='none', log=False, viztype='pcolor',**kwargs):
-    # obs is an instance of loader.assemble
-    # variables is dict() to access variable to plot
-    # axes is where the plot will be made. 
-    # limits is the typical dict with t0,t1,z0,z1
-    
-    if dsource == 'ADCP': # get xr.DataArray
+def cut_var(obs, dsource, variable):
+    if dsource =='ADCP':
         var_dat = obs.vars[variable];
         var_dat = var_dat.sel(z=slice(limits['z0'],limits['z1']));
         z_here = var_dat['z'].values;
@@ -71,6 +65,15 @@ def plot_period(obs, dsource,variable, axes, limits,resamp='none', log=False, vi
         var_dat = obs.vars[dsource][variable]; 
         z_here = var_dat['depth']; 
     var_dat = var_dat.sel(time=slice(limits['t0'],limits['t1'])); # apply limits
+    return var_dat
+        
+    
+def plot_period(obs, dsource,variable, axes, limits,resamp='none', log=False, viztype='pcolor',**kwargs):
+    # obs is an instance of loader.assemble
+    # variables is dict() to access variable to plot
+    # axes is where the plot will be made. 
+    # limits is the typical dict with t0,t1,z0,z1
+    var_dat = cut_var(obs, dsource, variable, limits); 
     
     if resamp == 'none':
         pass
@@ -101,12 +104,6 @@ def plot_period(obs, dsource,variable, axes, limits,resamp='none', log=False, vi
         panel=axes.contour(tvec,z_here, var_vals, **viz_args)
     return panel
 
-
-
-
-
-
-    
     
 def grid_xyz(df,y,y_query,dt_query,limits='none', log=False, data_format='xr'):
 	# Take in a pandas dataframe with values (z) and index (x). 
