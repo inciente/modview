@@ -5,51 +5,64 @@ import numpy as np
 import cmath
 import datetime
 
+def prep_data(data_mat, axis=0, detrend=False):
+    data_mat = np.nan_to_num(vector, nan=np.nanmean(data_mat)); 
+    if detrend: 
+        data_mat = signal.detrend(data_mat, axis=axis); 
+    return data_mat
+
 def segment_vector(vector, nseg, hann=False, detrend=False, axis=0):
     # Replace nans for mean of vector 
-    data = np.nan_to_num(vector, nan=np.nanmean(vector); 
+    data = np.nan_to_num(np.real(vector), nan=np.nanmean(np.real(vector)) ) \
+              + 1j*np.nan_to_num( np.imag(vector), nan=np.nanmean(np.imag(vector)) ); 
     if detrend:
-        data = signal.detrend(data,axis=ax)
-    datvar = np.nanvar(vector) # variance
+        data = signal.detrend(np.real(data),axis=axis) \
+                  + 1j*signal.detrend(np.imag(data),axis=axis);
+    datvar = np.nanvar(data,axis=axis) # variance
     if nseg>1:
+		# Data must be a vector
         N = len(vector)
         distt = np.floor(N/(nseg+1))
         M = int(2*distt); 
         tseries = np.empty((M,nseg)); 
         for segment in range(nseg):
-        start = int((segment)*distt); end = int((segment+2)*distt); 
-        tseries[:,segment] = data[start:end]; #arrange data into matrix
+            start = int((segment)*distt); 
+            end = int((segment+2)*distt); 
+            tseries[:,segment] = data[start:end]; #arrange data into matrix
             if hann==True: 
                 tseries = tseries*np.expand_dims(np.hanning(M),axis=1);
         else:
             # Original vector is returned with nans removed and detrended (if specified)  
             tseries = data;    			
         return tseries, datvar
+    else:
+        return data, datvar
         
-def power_from_mat(data_mat, ax=0):
+def power_from_mat(data_mat, axis=0):
     # Enter a 2D array and return the spectra of columns (ax=0) or rows (ax=1)
-    N = self.data.shape[ax]; # number of elements for fft
-    M = self.data.shape[np.abs(ax-1)];
+    N = data_mat.shape[axis]; # number of elements for fft
+    M = data_mat.shape[np.abs(axis-1)];
     comp = np.sum( np.iscomplex(data_mat))>1; # check if complex
     if comp:    
-        transform = np.fft.fft( data_mat, axis=ax); 
+        transform = np.fft.fft( data_mat, axis=axis); 
     else: 
-        transform = np.fft.rfft( data_mat, axis=ax); 
+        transform = np.fft.rfft( data_mat, axis=axis); 
     # make sure line below works for both fft and rfft 
-    transform = np.delete( transform, 0, axis=ax); # remove freq=0 
+    #transform = np.delete( transform, 0, axis=axis); # remove freq=0 
     transform = np.real(transform * np.conj(transform)); # calc power       
     return transform
 
-def spectrum_from_1d(vector, dt, nseg, hann=True):
-    vector = np.squeeze(vector); # avoid shape issues
-    N = len(vector); df = 1/(N*dt); 
+def spectrum_1D(arr, dt, axis, nseg=1, hann=False, **kwargs):
+    arr = np.squeeze(arr); # avoid shape issues
+    N = arr.shape[axis]; df = 1/(N*dt); 
     
-    data, datvar = prep_vector(vector, nseg, hann); 
-    power = get_power(data, ax=trans_ax); 
+    data, datvar = segment_vector(arr, nseg, hann, axis=axis);
+    datvar = np.expand_dims(datvar, axis=axis);  
+    power = power_from_mat(data, axis=axis); 
         
-    if len(power.shape)>1 and power.shape[1]>1:
-        power = np.mean( power, axis=1); 
-    powvar = np.sum(power,axis=trans_ax)*df; 
+    #if len(power.shape)>1 and power.shape[1]>1:
+    #    power = np.mean( power, axis=1); 
+    powvar = np.expand_dims( np.sum(power,axis=axis)*df, axis=axis); # integrate spectra 
     power = power / powvar * datvar; # normalize
     return power
 
@@ -58,7 +71,6 @@ def spectral_error(degsfred, cl=0.95):
     err_hi = chi2.isf((1-cl)/2, degsfred); 
     err_bar = np.array([err_low, err_high]); 
     return err_bar          
-
 
 
 class spectra: 
