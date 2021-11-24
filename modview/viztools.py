@@ -5,12 +5,39 @@ import numpy as np
 import scipy.interpolate as interpolate
 import pandas as pd
 
+
 class visualization:
     def __init__(self,data_dict,graphic_dict):
         self.data = data_dict;
         self.graphic = graphic_dict;
     # What do I want from this class?
+    # Create grid using specifications in graphic_dict
+    # Find a way to relate data to specific panels so it can all be added where it needs to go.
+    # Create grid spec using figure information
+    def make_gs(self): 
+        nx = len(self.graphic_dict['widths']); 
+        ny = len(self.graphic_dict['heights']); 
+        gs = self.graphic_dict['fig'].add_gridspec(ncols=nx, nrows=ny, 
+                    width_ratios=self.graphic_dict['widths'], 
+                    height_ratios=self.graphic_dict['heights']); 
+        self.graphic_dict['gs'] = gs; 
 
+    def make_panels(self):
+        panlist = self.graphic_dict['panels']; 
+        jj=0; 
+        for kk in panlist:
+            self.graphic_dict['axes'][jj] = self.graphic_dict['fig'].add_subplot( self.graphic_dict['gs'][kk[0],kk[1]]);    
+            jj+=1
+
+    def paint_panel(self,axind,datloc, **kwargs):
+        # Use datloc to locate data in data_dict to paint it on graphic_dict['axes'][axind]. 
+        # Use **kwargs to specify the format of the graphic  
+        pass
+    
+    def same_lims(self, axind, xlims='none',ylims='none'):
+        # Set equal axis limits for all panels in list axind. 
+        pass
+       
 
 def dateticks(axlist, axind, dts):
     # Major ticks.
