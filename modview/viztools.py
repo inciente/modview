@@ -5,6 +5,13 @@ import numpy as np
 import scipy.interpolate as interpolate
 import pandas as pd
 
+class visualization:
+    def __init__(self,data_dict,graphic_dict):
+        self.data = data_dict;
+        self.graphic = graphic_dict;
+    # What do I want from this class?
+
+
 def dateticks(axlist, axind, dts):
     # Major ticks.
     fmt_big = mpl.dates.DayLocator(interval=dts[1])
@@ -45,6 +52,58 @@ def scatter_xyz(x,y,color_var,y_offset='none',m_axis=1,vlims='auto'):
     sf = plt.scatter(x2plot, y2plot, c=c2plot, vmin=vlims[0], vmax=vlims[1]); 
     return sf
     
+def cut_var(obs, dsource, variable):
+    if dsource =='ADCP':
+        var_dat = obs.vars[variable];
+        var_dat = var_dat.sel(z=slice(limits['z0'],limits['z1']));
+        z_here = var_dat['z'].values;
+    elif dsource == 'chipod':
+        var_dat = obs.vars['chipod'][variable]
+        #var_dat = var_dat.sel(z=slice(limits['z0'],limits['z1']));
+        z_here = obs.vars['chipod']['z'];
+    elif dsource == 'Temperature':
+        var_dat = obs.vars[dsource][variable]; 
+        z_here = var_dat['depth']; 
+    var_dat = var_dat.sel(time=slice(limits['t0'],limits['t1'])); # apply limits
+    return var_dat
+        
+    
+def plot_period(obs, dsource,variable, axes, limits,resamp='none', log=False, viztype='pcolor',**kwargs):
+    # obs is an instance of loader.assemble
+    # variables is dict() to access variable to plot
+    # axes is where the plot will be made. 
+    # limits is the typical dict with t0,t1,z0,z1
+    var_dat = cut_var(obs, dsource, variable, limits); 
+    
+    if resamp == 'none':
+        pass
+    else:
+        var_dat = var_dat.resample(time=resamp).mean(); 
+    if log: # get data in plotting form
+        var_vals = np.log10(var_dat.values);
+    else: 
+        var_vals = var_dat.values;
+    if dsource=='chipod':
+        var_vals = var_vals.transpose();
+        
+    # Prepare visualization format 
+    viz_args = {'cmap':'viridis','vmin':-1,'vmax':1,'shading':'flat','levels':'none'};
+    for arg in viz_args.keys():
+        if arg in kwargs:
+            viz_args[arg] = kwargs.get(arg);
+            
+    tvec = pd.to_datetime(var_dat.time.values)
+    if viztype=='contourf':
+        del viz_args['vmin'], viz_args['vmax']
+        panel=axes.contourf(tvec, z_here,var_vals, **viz_args)
+    elif viztype=='pcolor':
+        del viz_args['levels']
+        panel = axes.pcolormesh(tvec, z_here, var_vals, **viz_args)
+    elif viztype=='contour':
+        del viz_args['vmin'], viz_args['vmax']
+        panel=axes.contour(tvec,z_here, var_vals, **viz_args)
+    return panel
+
     
 def grid_xyz(df,y,y_query,dt_query,limits='none', log=False, data_format='xr'):
 	# Take in a pandas dataframe with values (z) and index (x). 

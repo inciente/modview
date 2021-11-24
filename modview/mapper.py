@@ -11,6 +11,21 @@ def find_in_arr(arr, value, method='min'):
     # Return the index of item in arr that is closest to value.
     delta = abs(arr-value);
     return np.argmin(delta) 
+    
+def find_axis(var, vec):
+    # Return axis along which var has the same size as vec
+    check = [var.shape[kk] == len(vec) for kk in range(len(var.shape))]; 
+    axis = [i for i, x in enumerate(check) if x]; 
+    if len(axis)>1:
+        print('dimensions agree along more than one axis')
+        return
+    else:
+        return axis[0]
+    
+def avg_within_bins(obj_from, coord_from, coord_to):
+    # Take the average of values in obj_from between     
+    axis = find_axis(obj_from, coord_from); 
+    
 
 def block_around(xr_obj, location, edge=1, time=False):
     # Take in an xr.dataarray (xr_obj), and extract a block of data around 

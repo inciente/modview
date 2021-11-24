@@ -13,8 +13,12 @@ def prep_data(data_mat, axis=0, detrend=False):
 
 def segment_vector(vector, nseg, hann=False, detrend=False, axis=0):
     # Replace nans for mean of vector 
+<<<<<<< HEAD
     data = np.nan_to_num(np.real(vector), nan=np.nanmean(np.real(vector)) ) \
               + 1j*np.nan_to_num( np.imag(vector), nan=np.nanmean(np.imag(vector)) ); 
+=======
+    data = np.nan_to_num(vector, nan=np.nanmean(vector)); 
+>>>>>>> b0fb27b85071bbc49052f02dd2d001ef71788e75
     if detrend:
         data = signal.detrend(np.real(data),axis=axis) \
                   + 1j*signal.detrend(np.imag(data),axis=axis);
@@ -26,8 +30,12 @@ def segment_vector(vector, nseg, hann=False, detrend=False, axis=0):
         M = int(2*distt); 
         tseries = np.empty((M,nseg)); 
         for segment in range(nseg):
+<<<<<<< HEAD
             start = int((segment)*distt); 
             end = int((segment+2)*distt); 
+=======
+            start = int((segment)*distt); end = int((segment+2)*distt); 
+>>>>>>> b0fb27b85071bbc49052f02dd2d001ef71788e75
             tseries[:,segment] = data[start:end]; #arrange data into matrix
             if hann==True: 
                 tseries = tseries*np.expand_dims(np.hanning(M),axis=1);
