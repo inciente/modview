@@ -76,7 +76,6 @@ def ray_tracing(wave, medium, timevec):
     dkdt
     return 
              
-
 class internal_wave:
     def __init__(self, lat, t0=0,N2=1e-5):
         self._fk = dict();  # vector [freq, kx, ky, kz].

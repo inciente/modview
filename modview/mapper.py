@@ -5,7 +5,9 @@ def var_at_iso(varq, varl, values):
     # Take in two xr.DataArrays varq, varl, and map the values in varq onto 
     # lines/surfaces where varl == values[kk]. 
     if varq.dims == varl.dims:
-        
+        pass
+    else:
+        print('fake')    
 
 def find_in_arr(arr, value, method='min'):
     # Return the index of item in arr that is closest to value.
