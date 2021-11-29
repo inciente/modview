@@ -52,27 +52,27 @@ class assemble:
         self.grids = dict(); # they will be pandas, numpy, and xarray objects.
         self.vars = dict(); 
      
-    def retrieve(self,filename, fileformat):
-            
+    def retrieve(self,filename, fileformat, **kwargs):
         if fileformat in ['.nc','.netcdf','.nc4']:
-            dataset = xr.open_dataset(filename);
+            dataset = xr.open_dataset(filename, **kwargs);
         elif fileformat == '.mat':
-            dataset = sio.loadmat(filename);
+            dataset = sio.loadmat(filename, **kwargs);
         return dataset
             
-    def store_nc(self,filepaths,varname,limits='none'): 
+    def store_nc(self,filepaths,varname,limits='none',saveas='default', **kwargs): 
 		# mat support is experimental
         # This method will:
         # 1. Load dataset from "filename"
         # 2. Extract variable grid from "varname" in that dataset. 
         # 3. Store list of variable's grid inside of self.grids
-        cutgrid = isinstance(limits,dict);     
+        cutgrid = isinstance(limits,dict);  
+        jj=0;   
         for item in varname: 
             myvar = []; # store vals here
             for kk in range(len(filepaths)): 
                 filename = filepaths[kk]; 
                 datform = os.path.splitext(filename); # get data format
-                dataset = self.retrieve(filename,datform[1]);
+                dataset = self.retrieve(filename,datform[1], **kwargs);
 
                 myvar.insert(kk, dataset[item]);   
             #   If cut=True, load only a slice into memory 
@@ -80,7 +80,22 @@ class assemble:
                     myvar.insert(kk, myvar[kk].sel(time=slice(limits['t0'],limits['t1'])) );         
 
         # Store list of grids in dictionary
-            self.grids[item] = myvar;
+            if saveas=='default':
+                self.grids[item] = myvar;
+            else:
+                self.grids[saveas[jj]] = myvar;
+            jj += 1;
+        
+    
+    def cut_grids(self,gridnames,limits):
+        # Gridnames is a list of objects that correspond to keys in self.grids
+        # Let us access each grid in that list and make a subselection of data with xr.sel
+        #for kk in range(len(gridnames)):
+        #    this_var = self.grids[gridnames[kk]]
+        #    for item in this_var:
+        #        for dimensh in limits:
+        pass        
+
 
     def remove_limit_row(self, variable, item, dirax, howmany, first=False):
         # Remove the first or last row of non-nan measurements along a dimension
@@ -104,31 +119,35 @@ class assemble:
                     self.grids[variable][item].coords); 
     def makeplot(self):
         self.grids['u'][2].plot()
-    def interp_grid(self, variables, sorter ):
-        '''  This method takes dictionary list items within self.grids[variable]
-        - - format of items must be xr.DataArray 
-        - - all items are interpolated onto a new set of axes 
-        - - sorter is the str() for whatever dim unites measurements 
-                           for moorings it's usually depth or z '''
         
+    def concat_xrs(self, variable, sorter, sort=True, wiggle=False):
+        ''' Go to self.grids[variable] and concatenate all xr objects stored in that list.
+        Concatenation will occur along the sorter (string) dimension 
+        '''
+        datlist = self.grids[variable] # list of objects for this variable
+        vardata = []; varcoords = []; # store data and coordinats separately
+        all_inst = xr.concat( datlist, dim=sorter ); # sorter is a string
+        if wiggle:
+            all_inst[sorter] = all_inst[sorter] + 1e-5*np.random.rand( len(all_inst[sorter]));
+        if sort:
+            all_inst = all_inst.sortby(sorter); 
+        return all_inst
+        
+        
+    def interp_grid(self, variables, sorter , wiggle=False):
+        '''  All grids in self.grids[variables[kk]] are interpolated onto 
+        a new set of axes sorter is the str() for whatever dim unites 
+        measurements for moorings it's usually depth or z '''
         source_coords = dict(); 
         source_data = dict(); 
-        cake = []; 
-        
+        cake = [];     
         # Cyle through all variables requested
         for kk in range(len(variables)):
-            datlist = self.grids[variables[kk]];
-            vardata = [];
-            varcoords = []; 
-            # Data array with all values
-            all_inst = xr.concat( datlist, dim=sorter )
-            all_inst[sorter] = all_inst[sorter] + 1e-5*np.random.rand( len(all_inst[sorter]) ); 
-            all_inst = all_inst.sortby(sorter); 
-            
-            if all_inst.dims[1] == sorter:
+            all_inst = self.concat_xrs(variables[kk], sorter, sort=True, wiggle=True); 
+            if all_inst.dims[1] == sorter: # THIS IS VERY SPECIFIC TO MOORING APPLICATION
                 all_inst = all_inst.transpose(); # only works for 2d objects
 
-            all_inst = all_inst.interpolate_na(dim=sorter);
+            all_inst = all_inst.interpolate_na(dim=sorter); # INTERPOLATION WON'T BE NECESSARY IN MANY CASES
             self.vars[variables[kk]] = all_inst; # replace list for single xr object
      
 #    def make_multivar(self, vars2get, filepaths):
