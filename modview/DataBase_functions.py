@@ -2,7 +2,9 @@
 # coding: utf-8
 
 # In[1]:
-
+''' THINGS TO IMPROVE FOR NEXT VERSIONS:
+1. Look at examples of database usage in ().ipynb and wrap main repeatable functions into a single function.
+2. 
 
 import sqlite3
 conn = sqlite3.connect('LoaderDB3.db') # connection
@@ -11,7 +13,9 @@ c = conn.cursor()
 
 
 # In[2]:
-
+#def make_query(arguments):
+#    # create cursor, 
+#    # prepare_id(); id_maker(); 
 
 def Prepare_id(**kwargs):
     # This function runs through items in **kwargs and uses them to build an sql statement to execute.
