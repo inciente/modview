@@ -4,7 +4,7 @@
 # In[1]:
 ''' THINGS TO IMPROVE FOR NEXT VERSIONS:
 1. Look at examples of database usage in ().ipynb and wrap main repeatable functions into a single function.
-2. 
+2. '''
 
 import sqlite3
 conn = sqlite3.connect('LoaderDB3.db') # connection
