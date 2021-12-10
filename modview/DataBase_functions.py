@@ -2,7 +2,9 @@
 # coding: utf-8
 
 # In[1]:
-
+''' THINGS TO IMPROVE FOR NEXT VERSIONS:
+1. Look at examples of database usage in ().ipynb and wrap main repeatable functions into a single function.
+2. '''
 
 import sqlite3
 ### Check that the directory of the Data Base (FILE.db) is correct
@@ -17,12 +19,17 @@ c = conn.cursor()
 
 # In[2]:
 
+
 ### For the general function that includes all the functions bellow I have a question:
 ### Should I get rid of the "n" needed for Data extraction? in all examples that we have worked on we allways use n=0 since, at the moment,
 ### the date base is small and Prepare_id only drop out 1 result with 1 **kwargs probably in the future if someone only introduce 
 ### lat = 'global'and lon = 'global' more than 1 result comes out but if the query is more specific, like using more than 1 
 ### parameter for the query probably it will allways show up only 1 result
 
+
+#def make_query(arguments):
+#    # create cursor, 
+#    # prepare_id(); id_maker(); 
 
 def Prepare_id(**kwargs):
     # This function runs through items in **kwargs and uses them to build an sql statement to execute.
