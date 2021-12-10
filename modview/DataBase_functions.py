@@ -5,12 +5,23 @@
 
 
 import sqlite3
-conn = sqlite3.connect('LoaderDB3.db') # connection
+### Check that the directory of the Data Base (FILE.db) is correct
+conn = sqlite3.connect('D:/Documentos/CUCEI LIFI/Practicas Profesionales/modview/modview_new/modview/LoaderDB3.db') # connection
+
+### You can try to use LoaderDB3_EDIT.db that is an edit of LoaderDB3 that contains all the files from ARGO and I manually delated from
+### August 2019 to June 2020 to test if Loader can work with missing data since the example of ARGO used a for to run manually every month
+
 conn.row_factory = sqlite3.Row
 c = conn.cursor()
 
 
 # In[2]:
+
+### For the general function that includes all the functions bellow I have a question:
+### Should I get rid of the "n" needed for Data extraction? in all examples that we have worked on we allways use n=0 since, at the moment,
+### the date base is small and Prepare_id only drop out 1 result with 1 **kwargs probably in the future if someone only introduce 
+### lat = 'global'and lon = 'global' more than 1 result comes out but if the query is more specific, like using more than 1 
+### parameter for the query probably it will allways show up only 1 result
 
 
 def Prepare_id(**kwargs):
