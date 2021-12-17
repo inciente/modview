@@ -10,12 +10,20 @@ def prep_data(data_mat, axis=0, detrend=False):
     if detrend: 
         data_mat = signal.detrend(data_mat, axis=axis); 
     return data_mat
+    
+def nan_to_mean(vector):
+    checknan = np.isnan(vector); 
+    cavg = np.nanmean(vector); 
+    vector[checknan] = cavg;
+#    nuvector = np.nan_to_num(float(np.real(vector)), nan=float(np.real(cavg))); 
+    return vector
 
 def segment_vector(vector, nseg, hann=False, detrend=False, axis=0):
     # Replace nans for mean of vector 
     data = np.nan_to_num(np.real(vector), nan=np.nanmean(np.real(vector)) ) \
               + 1j*np.nan_to_num( np.imag(vector), nan=np.nanmean(np.imag(vector)) ); 
-    data = np.nan_to_num(vector, nan=np.nanmean(vector)); 
+    #data = np.nan_to_num(vector, nan=np.nanmean(vector)); 
+    
     if detrend:
         data = signal.detrend(np.real(data),axis=axis) \
                   + 1j*signal.detrend(np.imag(data),axis=axis);
@@ -57,7 +65,6 @@ def power_from_mat(data_mat, axis=0):
 def spectrum_1D(arr, dt, axis, nseg=1, hann=False, **kwargs):
     arr = np.squeeze(arr); # avoid shape issues
     N = arr.shape[axis]; df = 1/(N*dt); 
-    
     data, datvar = segment_vector(arr, nseg, hann, axis=axis);
     datvar = np.expand_dims(datvar, axis=axis);  
     power = power_from_mat(data, axis=axis); 
