@@ -143,7 +143,11 @@ class assemble:
         cake = [];     
         # Cyle through all variables requested
         for kk in range(len(variables)):
+<<<<<<< HEAD
 			all_inst = self.concat_xrs(variables[kk], sorter, sort=True, wiggle=True); 
+=======
+            all_inst = self.concat_xrs(variables[kk], sorter, sort=True, wiggle=True); 
+>>>>>>> ffde09a70204166cb739763488ec44c6a5a0284c
             if all_inst.dims[1] == sorter: # THIS IS VERY SPECIFIC TO MOORING APPLICATION
                 all_inst = all_inst.transpose(); # only works for 2d objects
 
