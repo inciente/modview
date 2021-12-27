@@ -137,7 +137,34 @@ class internal(wave):
             relation = -self.lhs + self.rhs
         return relation
 
-            
+class ray_tracing(ABC):
+    ''' Subclasses will represent different meethods of ray tracing that integrate 
+    pairs of instances derived from the wave and medium metaclasses.
+    '''
+    def __init__(self):
+        pass
+
+    @abstractmethod
+    def dkdt(self):
+        pass
+    
+    @abstractmethod
+    def drdt(self):
+        pass
+
+class kunze_1985(ray_tracing):
+    # May have to add an is_niw test when internal waves are instatiated
+    def __init__(self,niw,geost):
+        # Near-inertial wave and geostrophic medium
+        self.niw = niw; 
+        self.geost = geost; 
+        
+    
+
+
+    
+
+
 
 my_fk = {'omega':1e-4,'kx':0.000,'ky':2*np.pi/3e5,'kz':np.nan}
 medium = {'lon':130, 'lat':20,'depth':200,'N2':4e-6}

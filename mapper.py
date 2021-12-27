@@ -5,29 +5,44 @@ def var_at_iso(varq, varl, values):
     # Take in two xr.DataArrays varq, varl, and map the values in varq onto 
     # lines/surfaces where varl == values[kk]. 
     if varq.dims == varl.dims:
+        print('var_at_iso has not been written yet')
         pass
     else:
-        print('fake')    
+        print('var_at_iso has not been written yet')    
 
-def find_in_arr(arr, value, method='min'):
+def find_in_arr(arr, value):
     # Return the index of item in arr that is closest to value.
     delta = abs(arr-value);
     return np.argmin(delta) 
     
 def find_axis(var, vec):
-    # Return axis along which var has the same size as vec
+    ''' Return axis along which var has the same size as vec
+    '''
+    # dimensions of var with same length as vec
     check = [var.shape[kk] == len(vec) for kk in range(len(var.shape))]; 
-    axis = [i for i, x in enumerate(check) if x]; 
+    axis = [i for i, x in enumerate(check) if x]; # store dimension numbers 
     if len(axis)>1:
         print('dimensions agree along more than one axis')
         return
     else:
         return axis[0]
     
-def avg_within_bins(obj_from, coord_from, coord_to):
+def put_in_bins(data, coords, bins):
+    ''' data is a 1D array that represents nd data, 
+    coords is a list with n arrays, each with coordinates entries in data
+    bins is also a list with n arrays
+    fn
+    '''
+    if np.size(coords) != np.size(bins):
+        print('Coords and bins must be lists with same number of elements')
+        break 
+    in_bins = []; 
+    for sdim in range(len(coords)):
+        check = np.digitize(coords[sdim], bins[sdim]); # which entry in which bin
+        
     # Take the average of values in obj_from between     
     axis = find_axis(obj_from, coord_from); 
-    
+    print('avg_within_bins has not been written yet')
 
 def block_around(xr_obj, location, edge=1, time=False):
     # Take in an xr.dataarray (xr_obj), and extract a block of data around 

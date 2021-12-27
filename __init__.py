@@ -1,3 +1,3 @@
-#__all__ = ["loader","mapper","viztools"];
-#__version__ = 0.01;
-#from . import loader, mapper, viztools, timetools, phystools
+__all__ = ['mapper','data_loader','timetools'];
+from modview import *
+
