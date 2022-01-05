@@ -308,7 +308,14 @@ class geostrophic_field:
         DH = gsw.geo_strf_dyn_height(self.SAL.values, self.CT.values, p_mat, axis=p_ax);
         DH = xr.DataArray(data=DH, dims=self.CT.dims, coords=self.CT.coords); 
         return DH
-    
+   
+    def Nsquared(self,location,edge=1):
+        ''' Use vertical derivative of density
+        Check exactly how mapper.block_around works
+        '''
+        
+        pass 
+
     def var_around(self, xr_obj, location, edge=1): 
 		# Take in coordinates, and find u,v at that spot and neighboring points.
 		# location is [lon, lat, depth]
