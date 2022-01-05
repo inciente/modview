@@ -377,12 +377,14 @@ class geostrophic_field:
     
     def vorticity(self, location, edge=[0,2,2], point=False):
         u,v = self.flow_at(location,edge); 
-        dvdx = v.differentiate(coord=lon)/110e3/np.cos(np.radians(location['lat']));
-        dudy = u.differentiate(coord=lat)/110e3;  
+        dvdx = v.differentiate(coord='lon')/110e3/np.cos(np.radians(location['lat']));
+        dudy = u.differentiate(coord='lat')/110e3;  
         if point: # return value in the middle of block
             dvdx = mapper.middlepoint(dvdx.values); 
             dudy = mapper.middlepoint(dudy.values); 
-        return dvdx, dudy
+        vort = dvdx - dudy
+        return vort
+
          
     def pressure(self, use_ssh=False):
         if use_ssh: # barotropic component
