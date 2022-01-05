@@ -10,36 +10,41 @@ def prep_data(data_mat, axis=0, detrend=False):
     if detrend: 
         data_mat = signal.detrend(data_mat, axis=axis); 
     return data_mat
+    
+def nan_to_mean(vector):
+    checknan = np.isnan(vector); 
+    cavg = np.nanmean(vector); 
+    vector[checknan] = cavg;
+#    nuvector = np.nan_to_num(float(np.real(vector)), nan=float(np.real(cavg))); 
+    return vector
 
 def segment_vector(vector, nseg, hann=False, detrend=False, axis=0):
+    ''' Take a vector (for example a time serise) and separate it into nseg segments with a 50% overlap.
+    Options allow to add detrend the entire vector and/or scale windows using hanning window.
+    Axis is the index along which data will be segmented. Other axes are taken to be 
+    separate observations and same operation is repeated for those.'''
     # Replace nans for mean of vector 
     data = np.nan_to_num(np.real(vector), nan=np.nanmean(np.real(vector)) ) \
-              + 1j*np.nan_to_num( np.imag(vector), nan=np.nanmean(np.imag(vector)) ); 
-    data = np.nan_to_num(vector, nan=np.nanmean(vector)); 
+              + 1j*np.nan_to_num( np.imag(vector), nan=np.nanmean(np.imag(vector)) );     
     if detrend:
         data = signal.detrend(np.real(data),axis=axis) \
                   + 1j*signal.detrend(np.imag(data),axis=axis);
-    datvar = np.nanvar(data,axis=axis) # variance
+    datvar = np.nanvar(data,axis=axis) # compute data variance
     if nseg>1:
-		# Data must be a vector
-        N = len(vector)
+        # SEPARATE DATA INTO CHUNKS
+        N = len(vector); # length of input
         distt = np.floor(N/(nseg+1))
-        M = int(2*distt); 
+        M = int(2*distt); # length of each resulting segment 
         tseries = np.empty((M,nseg)); 
-        for segment in range(nseg):
-            start = int((segment)*distt); 
-            end = int((segment+2)*distt); 
+        for segment in range(nseg): # save chunks in tseries matrix 
             start = int((segment)*distt); end = int((segment+2)*distt); 
             tseries[:,segment] = data[start:end]; #arrange data into matrix
-            if hann==True: 
-                tseries = tseries*np.expand_dims(np.hanning(M),axis=1);
-        else:
-            # Original vector is returned with nans removed and detrended (if specified)  
-            tseries = data;    			
-        return tseries, datvar
+        if hann==True: 
+            tseries = tseries*np.expand_dims(np.hanning(M),axis=1);   			
+        return tseries, datvar # return segmented and windowed data
     else:
-        return data, datvar
-        
+        return data, datvar # return single segment of (detrended) data
+
 def power_from_mat(data_mat, axis=0):
     # Enter a 2D array and return the spectra of columns (ax=0) or rows (ax=1)
     N = data_mat.shape[axis]; # number of elements for fft
@@ -57,7 +62,6 @@ def power_from_mat(data_mat, axis=0):
 def spectrum_1D(arr, dt, axis, nseg=1, hann=False, **kwargs):
     arr = np.squeeze(arr); # avoid shape issues
     N = arr.shape[axis]; df = 1/(N*dt); 
-    
     data, datvar = segment_vector(arr, nseg, hann, axis=axis);
     datvar = np.expand_dims(datvar, axis=axis);  
     power = power_from_mat(data, axis=axis); 
@@ -240,5 +244,5 @@ def CompDemod(variable, tvec, frads, dt_obs):
 
     Amp = 2*np.abs(Yvar); cycphase = 2*Yvar/Amp; 
     return Amp
-        
+
      
