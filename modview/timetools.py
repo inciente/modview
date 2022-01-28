@@ -6,7 +6,7 @@ import cmath
 import datetime
 
 def prep_data(data_mat, axis=0, detrend=False):
-    data_mat = np.nan_to_num(vector, nan=np.nanmean(data_mat)); 
+    data_mat = np.nan_to_num(data_mat, nan=np.nanmean(data_mat)); 
     if detrend: 
         data_mat = signal.detrend(data_mat, axis=axis); 
     return data_mat

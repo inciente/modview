@@ -5,6 +5,34 @@ import numpy as np
 import scipy.interpolate as interpolate
 import pandas as pd
 import datetime
+import cartopy as cart
+
+cart_projections = {'PlateCarree':cart.crs.PlateCarree,
+        'AlbersEqualArea':cart.crs.AlbersEqualArea,
+        'Mercator':cart.crs.Mercator, 'Mollweide':cart.crs.Mollweide,
+        'Orthographic':cart.crs.Orthographic, 'Robinson':cart.crs.Robinson,
+        'NearsidePerspective':cart.crs.NearsidePerspective, 
+        None:None};
+
+class map:
+    def __init__(self, in_fig, axind):
+        self.projection = in_fig.graphic['projections'][axind];
+        self.axis = in_fig.axes[axind]; 
+        self.xlabels = in_fig.graphic['xlabels'][axind];
+        self.ylabels = in_fig.graphic['ylabels'][axind];
+
+    def draw_ticks(self,latlabels=True,lonlabels=True):
+        gl = self.axis.gridlines(crs=self.projection(),
+                draw_labels=True, linewidth=1, color='k', alpha=0.7); 
+        gl.top_labels = False; gl.bottom_labels = self.xlabels;
+        gl.right_labels= False; gl.left_labels = self.ylabels;
+
+    def draw_coast(self, extent, color='gray', equal=True):
+        self.axis.set_extent(extent, crs=self.projection());
+        if equal:
+            self.axis.set_aspect('equal'); 
+        self.axis.add_feature(cart.feature.LAND, zorder=100,edgecolor='k',
+                facecolor=color); 
 
 """ Use this class to create multi-panel visualizations.
 Inputs are two dictionaries. 
@@ -12,16 +40,27 @@ graphic_dict must include: ['figsize','widths','heights','panels'] to specify
 the general format of the plot.
 """ 
 
+def draw_coast(ax,extent=[-20,20,20,70], color='gray', equal=True):
+    ax.set_extent(extent); 
+    if equal:
+        ax.set_aspect('equal'); 
+    ax.add_feature(cart.feature.LAND, zorder=100,
+            edgecolor='k', facecolor=color);
+
 class panel_plot:
     def __init__(self,graphic_dict, data_dict='none'):
         self.data = data_dict;
         self.graphic = graphic_dict;
         self.axes = []; 
         self.fig = plt.figure(figsize=graphic_dict['figsize']); 
+
+    def draw(self):
+        if 'projections' not in self.graphic:
+            self.graphic['projections'] = [None]*len(self.graphic['panels']);
         self.make_gs();
-        self.make_axes();
+        self.make_axes(); 
         self.write_labels(); 
-               
+
     # What do I want from this class?
     # Create grid using specifications in graphic_dict
     # Find a way to relate data to specific panels so it can all be added where it needs to go.
@@ -37,15 +76,30 @@ class panel_plot:
 
     def make_axes(self):
         panlist = self.graphic['panels']; 
-        for kk in panlist:
-            ax_here = self.fig.add_subplot( self.graphic['gs'][kk[0],kk[1]]);
+        for kk in range(len(panlist)):
+            ax_span = panlist[kk]; # place axis in gridspec
+            proj = cart_projections[self.graphic['projections'][kk]]; # get proj
+            self.graphic['projections'][kk] = proj; # change string for projection
+            if proj is not None:
+                print(proj)
+                # Make a map
+                proj = proj(central_longitude=self.graphic['map_centers'][kk][0]);
+                ax_here = self.fig.add_subplot( \
+                        self.graphic['gs'][ax_span[0],ax_span[1]], projection=proj);
+            else:
+                ax_here = self.fig.add_subplot( \
+                    self.graphic['gs'][ax_span[0],ax_span[1]] );
             self.axes.append(ax_here)
-    
+            
     def write_labels(self):
         jj=0
-        for ax in self.axes:
-            ax.set_ylabel(self.graphic['labels'][jj])
-            jj+=1
+        if 'xlabels' not in self.graphic:
+            pass
+        else:
+            for ax in self.axes:
+                ax.set_xlabel(self.graphic['xlabels'][jj])
+                ax.set_ylabel(self.graphic['ylabels'][jj])
+                jj+=1
         
         
     def paint_panel(self,axind,datloc, **kwargs):

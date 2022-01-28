@@ -1,5 +1,8 @@
 # Functions to find index mapping between data objects of different types.
 import xarray as xr; import numpy as np; 
+from gsw import distance 
+import datetime
+from abc import ABC, abstractmethod
 
 def var_at_iso(varq, varl, values):
     # Take in two xr.DataArrays varq, varl, and map the values in varq onto 
@@ -66,17 +69,20 @@ def block_around(xr_obj, location, edge=1, time=False):
     return subsel
 
 
-def standardize_coords(obj):
+def standardize_coords(obj,array=None):
     ''' Now that standard coordinate names have been set in coord_axes(), 
     create a function that will rename dimensions in any given xr using the 
     axes dictionary that comes out of coord_axes. That way the dictionary 
     does not have to be carried over within external functions and classs. '''
-    axes = coord_axes(obj); 
+    if isinstance(obj, xr.DataArray):
+        axes = coord_axes(obj);
+    elif isinstance(obj, xr.Dataset):
+        axes = coord_axes( obj[array] );
     renamer = dict(); 
     for st_coord in axes.keys():
         renamer[axes[st_coord][0]] = st_coord;
-    obj.rename(renamer);
-    return obj
+    return obj.rename(renamer)
+
 
 def coord_axes(obj):
     ''' Read the names and values of axes/dims in xr obj and
@@ -91,17 +97,28 @@ def coord_axes(obj):
         # save coord as string, values (xr), and dimension axis in obj
         translator = (dim, obj[dim], find_axis(obj, obj[dim])); 
         # save in corresponding dictionary key
-        if dim in ['lon','longitude','LONGITUDE','LON']:
+        if dim in ['lon','longitude','LONGITUDE','LON','X']:
             axes['longitude'] = translator; 
-        elif dim in ['lat','latitude','LATITUDE','LAT']:
+        elif dim in ['lat','latitude','LATITUDE','LAT','Y']:
             axes['latitude'] = translator; 
-        elif dim in ['p','pressure','PRESSURE','depth']:
+        elif dim in ['p','pressure','PRESSURE','depth','P']:
             axes['pressure'] = translator; 
-        elif dim in ['time','date','t']:
+        elif dim in ['time','date','t','TIME','T']:
             axes['time'] = translator
         else: 
             print('Dimension ' + dim + ' was not found in object');
     return axes
+
+def mean_line(array,axis):
+    ''' Take in an array and extract a 1D slice of all elements along
+    a given axis. This was written to turn 3D and 4D pressure data that
+    comes out of gsw.Nsquared() into usable 1D arrays.'''
+    ndims = len(array.shape); 
+    for jj in np.flip(range(ndims)):
+        if jj != axis:
+            array = np.nanmean(array, axis=jj);
+    array = np.squeeze(array); 
+    return array
 
 def match_latlon(obj, to_obj):
     newobj = obj.sel(lon=to_obj.lon, method='linear');
@@ -131,8 +148,128 @@ def coords_to_xyzt(xr_obj):
     return new_coords
 
 
+class location:
+    def __init__(self, longitude=np.nan, latitude=np.nan, \
+            pressure=np.nan, time=np.nan):
+        # Create brand new position.
+        self.loc = np.array([longitude, latitude, pressure, time]); 
+        #self.longitude = longitude; 
+        self.latitude = self.loc[1]; 
+        #self.pressure = pressure; 
+        #self.time = time;     
+        
+    def distance_to(self, other_location):
+        obj_list = [self, other_location];
+        dl = distance([kk.loc[0] for kk in obj_list],
+                [kk.loc[1] for kk in obj_list], 
+                [kk.loc[2] for kk in obj_list]); # in meters 
+        return dl
+
+    def displace(self, **kwargs):
+        ''' Returns a new location by adding displacements to each 
+        coordinate in self.loc. Displacements can be given in meters (dx,dy)
+        or degrees (dlon, dlat).'''
+        disp = np.array([0 if ~np.isnan(kk) else np.nan for kk in self.loc]); 
+        midlat = self.loc[1];
+        if 'dy' in kwargs:
+            disp[1] = kwargs['dy']/110e3;
+        elif 'dlat' in kwargs:
+            disp[1] = kwargs['dlat'];
+            midlat = self.loc[1] + dlat/2
+        if 'dx' in kwargs:
+            disp[0] = kwargs['dx']/110e3/np.cos(midlat/180*np.pi);
+        elif 'dlon' in kwargs:
+            disp[0] = kwargs['dlon']; 
+        if 'dp' in kwargs:
+            disp[2] = kwargs['dp'];
+        if 'dt' in kwargs:
+            disp[3] = kwargs['dt'];
+        new_loc = self.loc + disp;
+        new_loc = location( longitude=new_loc[0], latitude=new_loc[1], 
+                pressure=new_loc[2], time=new_loc[3]); 
+        return new_loc
+
+    def eval_xr(self,xr_obj, method='linear', dlon=0, dlat=0, dp=0):
+        if self.loc[2] is not None and \
+                'pressure' in xr_obj.coords.dims:
+            xr_obj = xr_obj.interp(pressure=self.loc[2]+dp, method=method);
+        xr_obj = xr_obj.interp(longitude=self.loc[0]+dlon, method=method);
+        xr_obj = xr_obj.interp(latitude=self.loc[1]+dlat, method=method); 
+        return xr_obj.values
+
+    def gradient_xr(self, xr_obj, dlat=None, dlon=None, dp=None):
+        ''' Calculate gradient of variable in an xr.Dataarray
+        at this location. Depending on which arg is not none, we
+        will calculate gradient in a different direction.'''
+        grad = [None, None, None]; 
+        if dlon is not None:
+            f1 = self.eval_xr(xr_obj, dlon=-dlon/2); 
+            f2 = self.eval_xr(xr_obj, dlon=dlon/2); 
+            grad[0] = (f2-f1)/(dlon*110e3*np.cos(self.latitude))
+        if dlat is not None:
+            f1 = self.eval_xr(xr_obj, dlat=-dlat/2);
+            f2 = self.eval_xr(xr_obj, dlat=dlat/2); 
+            grad[1] = (f2-f1)/(dlat*110e3)
+        if dp is not None:
+            f1 = self.eval_xr(xr_obj, dp=-dp/2); 
+            f2 = self.eval_xr(xr_obj, dp=dp/2); 
+            grad[2] = -(f2-f1)/dp # relative to z (increase upward)
+        return grad
+
+''' DEFINE FACTORY FOR LOCATIONS AND CALL FACTORIES FROM WITHIN TRACK 
+that way, track can create new locations without having to know anything about
+how those locations are being generated.
+
+Abstract base classes needed: 
+
+'''
+
+class sampling_scheme(ABC):
+    ''' Subclasses may include: static (constant set of locations), 
+    track(s), where locations changes over time
+    '''
+    
+    def __init__(self, **kwargs):
+        self.elements = dict(); 
+
+    def get_element(self,el_id):
+        print('getting element from sample')
+
+    def create_location(self, **kwargs) -> location:
+        nu_loc = location(self, kwargs); 
+        return nu_loc
+
+   # def assign_loc_to_element(self,element,location):
 
 
+
+
+
+class track:
+    def __init__(self, list_of_locations=[]):
+        self.path = list_of_locations; 
+        self.dims = []; 
+
+    def add_location(self,loc):
+        if isinstance(loc,location):
+            self.path.append(location); 
+        else: 
+            print('Warning: items must be instances of the location class');
+
+    def to_xyzt(self):
+        ''' Return arrays with the values of longitude, latitude, etc. 
+        To simplify plotting time series '''
+        pos_dict = {'longitude':[], 'latitude':[],
+                'pressure':[], 'time':[]};
+        index = 0
+        for loc in self.path:
+            pos_dict['latitude'].append(loc.loc[1]);
+            pos_dict['longitude'].append(loc.loc[0]); 
+            pos_dict['pressure'].append(loc.loc[2]); 
+            pos_dict['time'].append(loc.loc[3]);
+        for kk in pos_dict.keys():
+            pos_dict[kk] = np.array(pos_dict[kk]); 
+        return pos_dict
 
 
 

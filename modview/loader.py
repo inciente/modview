@@ -2,9 +2,71 @@ import numpy as np
 import xarray as xr
 import pandas as pd
 import scipy.io as sio
-import datetime
+import datetime, warnings
 import os.path
-import warnings
+from abc import ABC, abstractmethod
+
+
+''' 
+Module for loading, preparing, merging, and saving data from geophysical 
+simulations and experiments. 
+Testing has focused on physical oceanography including gridded datasets 
+from both in-situ and remote observations as well as model output. 
+Most data is managed as xarray objects, except for some instruments that
+are best represented by pandas dataframes. 
+
+Classes in this module: 
+    matfile
+        datenum_to_datetime    
+    assemble 
+        retreive
+        store_nc
+        remove_limit_row
+        concat_xrs
+        interp_grid
+    saver (it has two modes. to netcdf and mat)
+
+Rogue functions:
+    clean_chivar
+    mat2xr
+
+What are some metaclasses and better structures that could streamline data loading
+and increase versatility to work with diverse datasets? ////
+
+- Written by Noel G. Brizuela
+- Scripps Institution of Oceanography
+- nogutier@ucsd.edu
+- January of 2022
+'''
+
+class saver(ABC):
+    def __init__(self, object_list):
+        self.obj_list = object_list; # may include many object types
+        self.settings = dict(); 
+
+    def set_destination(self, filename):
+        self.settings['filename'] = os.path.basename(filename); 
+        self.settings['directory'] = os.path.abspath(filename);
+
+    def gather_xrs(self):
+        ''' Run through xrs in self.obj_list, identify instances of xr.DataArray
+        and xr.Dataset, and prepare those to be saved. 
+        For simplicity, it will be assumed that all dataarrays can be merged into
+        a single dataset.
+        '''
+        for obj in self.obj_list:
+            pass
+        if isinstance(obj, xr.DataArray):
+                pass
+
+    
+class to_netcdf(saver):
+    def __init__(self, object_list):
+        pass
+
+class to_matfile(saver):
+    def __init__(self, object_list):
+        pass
 
 def clean_chivar(data_dict, flags, var2clean, as_xr=False):
     # chi_data is a dict produced by reading multiple variables in matfile
