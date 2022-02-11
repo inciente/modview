@@ -2,8 +2,10 @@ from scipy.signal import butter, filtfilt, freqz
 import scipy.signal as signal
 from scipy.stats import chi2
 import numpy as np
-import cmath
-import datetime
+import cmath, datetime
+import pandas as pd
+from abc import ABC, abstractmethod
+import xarray as xr
 
 def prep_data(data_mat, axis=0, detrend=False):
     data_mat = np.nan_to_num(data_mat, nan=np.nanmean(data_mat)); 
@@ -199,15 +201,19 @@ def powerspec(timeseries, dt, timeax=0, hann=True):
 	return np.real(spectrum)
 	
 
-def xpass(var, frads, dt_obs, filt_type, order = 3):
+def xpass(var, frads, dt_obs, filt_type, order = 3, axis=None):
     # Create digital filter for evenly spaced data
     Wn = makefreq( frads, dt_obs ) 
     b,a = butter( order, Wn, btype = filt_type, analog = False)
     #w,h = freqz(b,a)
+    if axis is None:
+        inputshape = var.shape;
+        axis = inputshape.index(max(inputshape));
+    
     #plt.plot( w, np.log10(abs(h)))
     # Assume that longest dimension is time dimension (generally true)
     inputshape = var.shape;
-    return filtfilt(b,a,var, axis = inputshape.index(max(inputshape)));
+    return filtfilt(b,a,var, axis=axis);
 
 def makefreq(frads, dt_obs):
     # Create frequency input for xpass based on:
@@ -224,6 +230,149 @@ def nearf(lat,width = [0.8,1.2]):
     # Find band-limit frequencies for the near-inertial band
     f = 4*np.pi*np.sin(lat/180*np.pi)/24/3600; # inertial freq in rads/second
     return f*np.array(width)
+
+
+def get_timenum(var_xr, units='seconds'):
+    timenum = pd.to_datetime(var_xr.time.values);
+    timenum = (timenum - timenum[0]).total_seconds();
+    timenum = np.expand_dims( timenum.to_numpy(), axis=1); 
+    if units in ['hours','days']:
+        timenum = timenum/3600;
+    if units == 'days':
+        timenum = timenum / 24;
+    return timenum
+
+
+class Hebert_1994:
+    ''' Backrotation following the appendix of Hebert and Moum (JPO, 1994).
+    Mostly meant to be used with shipboard adcp data, but can be used in other
+    settings too. '''
+    def __init__(self, var_xr, seg_dt, freqs=np.linspace(0.95,1.05,4)):
+        var_xr['timenum'] = ('time', np.squeeze(get_timenum(var_xr)) ); # unique time vector
+        self.ship_dat = var_xr;
+        self.seg_dt = seg_dt; # segment duration in seconds
+        self.freqs = freqs; # to be multiplied by local f for each segment
+        self.results = dict();
+        print('about to get amplitudes')
+        self.get_amplitudes()
+
+    def backrotate(self, dataset, variable, frads, forward=False, amp=None):
+        timephase = frads * dataset['timenum']; # use universal time vector
+        if isinstance(variable, str):
+            # prepare dataset[variable] for backrotation
+            variable = dataset[variable]; 
+            variable = variable - variable.mean(dim='time', skipna=True);
+
+        if forward: 
+            if isinstance(amp, xr.DataArray):
+                amp = amp - amp.mean(dim='time', skipna=True);
+            else: 
+                amp = np.expand_dims(amp,axis=0);
+                timephase = timephase = np.expand_dims(timephase,axis=1); 
+            backrotated = amp * (np.cos(timephase) + 1j*np.sin(-timephase));
+        else:
+            variable = variable - variable.mean(dim='time',skipna=True);
+            backrotated = variable * ( np.cos(timephase) + 1j*np.sin(timephase) );
+        return backrotated
+
+    def variance_fraction(self, A,B,freqs, segment_data):
+        # Calculate variance in data for a list of amplitudes and frequencies
+        u_dat = segment_data['u'] - segment_data['u'].mean(dim='time',skipna=True);
+        v_dat = segment_data['v'] - segment_data['v'].mean(dim='time',skipna=True); 
+        denom = u_dat.var(skipna=True) + v_dat.var(skipna=True);  
+        fractions = [] # save data here
+        for kk in range(len(freqs)):
+            amp_u = A[kk]; amp_v = B[kk]; frads = freqs[kk]; 
+            u_rec = self.backrotate(segment_data,'u',frads,forward=True,amp=amp_u);
+            v_rec = self.backrotate(segment_data,'v',frads,forward=True,amp=amp_v);
+            # Calculate MSE
+            numer = np.abs( u_dat - u_rec )**2 + np.abs( v_dat - v_rec )**2;
+            numer = np.nanmean(numer); 
+            fractions.append(numer);
+        fractions = 1 - np.array(fractions) / numer; 
+        return fractions
+
+    def get_amplitudes(self):
+        # Run through segments and calculate amplitudes
+        Ti = pd.to_datetime( self.ship_dat.time.values[0] ); 
+        Tf = Ti + datetime.timedelta(seconds=self.seg_dt); # segment limits
+        A = []; B = []; omega = []; Times = []; # to save answers
+        var = []; local_f = []; 
+        while Tf < self.ship_dat.time.values[-1]:
+            segment = self.ship_dat.sel(time=slice(Ti,Tf)); # apply time limits
+            f_test = nearf(segment['latitude'].mean().values, self.freqs); # ni-range
+            local_f.append( nearf(segment['latitude'].mean().values, 1));
+            # ----- save fit information for many frequencies
+            amps_u = []; amps_v = [];
+            for kk in range(len(f_test)):
+                rotated_u = self.backrotate(segment,'u', f_test[kk]); 
+                rotated_v = self.backrotate(segment,'v', f_test[kk]); 
+                # save complex amplitudes)
+                u_amp = 2*np.nanmean( np.abs(rotated_u.values),axis=0); 
+                u_phase = 2*np.nanmean(rotated_u.values,axis=0)/u_amp
+                amps_u.append( u_amp*(np.cos(u_phase) + 1j*np.sin(u_phase) )); 
+                # now for v
+                v_amp = 2*np.nanmean( np.abs(rotated_v.values),axis=0);
+                v_phase = 2*np.nanmean( rotated_v.values,axis=0)/v_amp;
+                amps_v.append( u_amp*(np.cos(v_phase) + 1j*np.sin(v_phase)  ))
+            # ----- compute fraction of variance in each fit
+            var_fracs = self.variance_fraction( amps_u, amps_v, f_test, segment);
+            # keep best fit only
+            best_index = np.argmax(var_fracs);
+            A.append(amps_u[best_index]); B.append(amps_v[best_index]);
+            omega.append(f_test[best_index]); 
+            var.append( var_fracs[best_index] ); 
+            Ti += datetime.timedelta(seconds=self.seg_dt/2); # for next segment
+            Tf += datetime.timedelta(seconds=self.seg_dt/2);# 50% overlap
+            Times.append(Ti); # save middle point in segment
+        
+        self.results = {'A':A,'B':B,'omega':omega,'Tm':Times,'f':local_f}
+    
+    def remake_data(self,comp='u', dt=7200):
+        results = self.results
+        if comp == 'u':
+            amp = results['A'];
+        elif comp == 'v':
+            amp = results['B'];
+        recreate = xr.Dataset( coords={'pressure':self.ship_dat['depth'].values,
+                        'time':np.squeeze(results['Tm']) } );
+        recreate['amp'] = xr.DataArray( data=np.asarray(amp),
+                dims=('time','pressure'))
+        recreate['omega'] = xr.DataArray( data=results['omega'], dims='time')
+        recreate = recreate.interp(time=self.ship_dat.time); 
+        # Alternative way of computing this shit
+        timephase = self.ship_dat['timenum']*recreate['omega']; 
+        recreate['timephase'] = timephase
+        u_rec = recreate['amp']*( np.cos(timephase) + 1j*np.sin(\
+                timephase));
+        
+       # ------- time vector to interpolate onto        
+       # tot_duration = (results['Tm'][-1] - results['Tm'][0]).total_seconds();
+       # t_off = np.arange(0, tot_duration, dt);
+       # new_time = [results['Tm'][0] + datetime.timedelta(seconds=kk) \
+       #         for kk in t_off]
+       # recreate = recreate.interp(time=new_time); 
+       # timephase = get_timenum(recreate).transpose()*recreate['omega'].values; 
+       # timephase = timephase.transpose();
+       # recreate['timephase'] = (('time'), np.squeeze(timephase)); 
+       # # apply rotation
+       # u_rec = recreate['amp'].values*( np.cos( timephase ) + \
+       #         1j*np.sin( timephase ) );
+        u_rec = xr.DataArray( data=u_rec.transpose(), 
+                dims=('pressure','time'), coords={\
+                'pressure':self.ship_dat['depth'].values,'time':self.ship_dat.time})
+        return u_rec, recreate
+
+    def NIKE(self,z0,z1,dt=3600*12):
+        u_fake = self.remake_data('u',dt=dt);
+        v_fake = self.remake_data('v',dt=dt); 
+
+    def u(self, v=False):
+        if v:
+            u = self.ship_dat['v'].transpose()
+        else:
+            u = self.ship_dat['u'].transpose();
+        return u
 
 def CompDemod(variable, tvec, frads, dt_obs):
     # Data in variable taken to be periodic at freq + other things.
