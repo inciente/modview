@@ -23,7 +23,7 @@ class map:
 
     def draw_ticks(self,latlabels=True,lonlabels=True):
         gl = self.axis.gridlines(crs=self.projection(),
-                draw_labels=True, linewidth=1, color='k', alpha=0.7); 
+                draw_labels=True, linewidth=1, color='k', alpha=0.2); 
         gl.top_labels = False; gl.bottom_labels = self.xlabels;
         gl.right_labels= False; gl.left_labels = self.ylabels;
 
@@ -33,6 +33,31 @@ class map:
             self.axis.set_aspect('equal'); 
         self.axis.add_feature(cart.feature.LAND, zorder=100,edgecolor='k',
                 facecolor=color); 
+
+ 
+def make_map( fig, axind, data, settings, plot_format, func=None): 
+    ''' Plot data within the axis of a panel_plot object. Axis must have a defined 
+    transform (map).'''  
+    # = mapper.cut_map(data, limits, t_now=settings['t_now']) 
+    if func is not None: 
+        data = func(data) 
+    # figure properties 
+    ax = fig.axes[axind]; map_proj = fig.graphic['projections'][axind];
+    
+    if plot_format == 'contour':
+        plot = ax.contour( data.longitude, data.latitude, data, 
+                        colors=settings['colors'], levels=settings['levels'], 
+                        transform=map_proj(), linewidths=1.2, alpha=0.7)
+    elif plot_format == 'contourf':
+        plot = ax.contourf( data.longitude, data.latitude, 
+                data, cmap=settings['cmap'], levels=settings['levels'],
+                extend='both',transform=map_proj())
+    elif plot_format == 'pcolormesh':
+        plot = ax.pcolormesh( data.longitude, data.latitude, 
+                np.squeeze(data), cmap=settings['cmap'], vmin=settings['vmin'],
+                            vmax=settings['vmax'], transform=map_proj())
+    return plot
+
 
 """ Use this class to create multi-panel visualizations.
 Inputs are two dictionaries. 
@@ -124,12 +149,14 @@ def dateticks(axlist, axind, dts):
     # FOrmat of text
     axlist[axind].xaxis.set_major_formatter(mpl.dates.DateFormatter('%b %-d'))
 
-def dateticks2(ax_obj, dts):
+def dateticks2(ax_obj, dts, hours=False):
     # Major ticks.
     fmt_big = mpl.dates.DayLocator(interval=dts[1])
     ax_obj.xaxis.set_major_locator(fmt_big)
     # Minor ticks.
     fmt_small = mpl.dates.DayLocator(interval=dts[0])
+    if hours:
+        fmt_small = mpl.dates.HourLocator(interval=dts[0]);
     ax_obj.xaxis.set_minor_locator(fmt_small)
     # FOrmat of text
     ax_obj.xaxis.set_major_formatter(mpl.dates.DateFormatter('%b %-d'))

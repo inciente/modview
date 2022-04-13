@@ -8,9 +8,14 @@ from abc import ABC, abstractmethod
 import xarray as xr
 
 def prep_data(data_mat, axis=0, detrend=False):
-    data_mat = np.nan_to_num(data_mat, nan=np.nanmean(data_mat)); 
+    avg_real = np.nanmean(np.real(data_mat)); 
+    avg_imag = np.nanmean(np.imag(data_mat)); 
+    data_mat = np.nan_to_num( np.real(data_mat), nan=avg_real) \
+                  + 1j*np.nan_to_num( np.imag(data_mat), nan=avg_imag);
     if detrend: 
-        data_mat = signal.detrend(data_mat, axis=axis); 
+        data_mat = signal.detrend( np.real(data_mat), axis=axis) \
+                  + 1j*signal.detrend( np.imag(data_mat), axis=axis); 
+                  # output will always be imaginary
     return data_mat
     
 def nan_to_mean(vector):
@@ -26,11 +31,7 @@ def segment_vector(vector, nseg, hann=False, detrend=False, axis=0):
     Axis is the index along which data will be segmented. Other axes are taken to be 
     separate observations and same operation is repeated for those.'''
     # Replace nans for mean of vector 
-    data = np.nan_to_num(np.real(vector), nan=np.nanmean(np.real(vector)) ) \
-              + 1j*np.nan_to_num( np.imag(vector), nan=np.nanmean(np.imag(vector)) );     
-    if detrend:
-        data = signal.detrend(np.real(data),axis=axis) \
-                  + 1j*signal.detrend(np.imag(data),axis=axis);
+    data = prep_data( vector, axis, detrend ); 
     datvar = np.nanvar(data,axis=axis) # compute data variance
     if nseg>1:
         # SEPARATE DATA INTO CHUNKS
@@ -47,15 +48,17 @@ def segment_vector(vector, nseg, hann=False, detrend=False, axis=0):
     else:
         return data, datvar # return single segment of (detrended) data
 
-def power_from_mat(data_mat, axis=0):
+def power_from_mat(data_mat, axis=0, detrend=False):
     # Enter a 2D array and return the spectra of columns (ax=0) or rows (ax=1)
     N = data_mat.shape[axis]; # number of elements for fft
-    M = data_mat.shape[np.abs(axis-1)];
+    M = data_mat.shape[np.abs(axis-1)]; # number of realizations
+    data_mat = prep_data(data_mat, axis, detrend); # remove nans, detrend
+
     comp = np.sum( np.iscomplex(data_mat))>1; # check if complex
     if comp:    
         transform = np.fft.fft( data_mat, axis=axis); 
     else: 
-        transform = np.fft.rfft( data_mat, axis=axis); 
+        transform = np.fft.rfft( np.real(data_mat), axis=axis); 
     # make sure line below works for both fft and rfft 
     #transform = np.delete( transform, 0, axis=axis); # remove freq=0 
     transform = np.real(transform * np.conj(transform)); # calc power       
@@ -77,7 +80,7 @@ def spectrum_1D(arr, dt, axis, nseg=1, hann=False, **kwargs):
 def spectral_error(degsfred, cl=0.95):
     err_low = chi2.isf(cl+(1-cl)/2, degsfred); 
     err_hi = chi2.isf((1-cl)/2, degsfred); 
-    err_bar = np.array([err_low, err_high]); 
+    err_bar = np.array([err_low, err_hi]); 
     return err_bar          
 
 

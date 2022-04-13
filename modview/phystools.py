@@ -1,5 +1,6 @@
 import numpy as np; import xarray as xr; import pandas as pd; 
 import sympy as sym; import gsw; import mapper; import datetime
+import scipy.interpolate as scinterp
 from sympy.utilities.lambdify import lambdify, implemented_function
 import importlib
 importlib.reload(mapper)
@@ -27,7 +28,7 @@ def hydrostasy(rho, zlevels, ssh=0, z_req=np.nan, p_axis=0, p_ref = 0):
     
     pressure[1:] = [dz[i]*9.81*0.5*(rho[i-1]+rho[i]) for i in range(1,len(pressure))];
     return pressure
-		
+
 def wkb_stretch(z, N2, MLD):
     belowML = z>MLD; 
     N = np.sqrt(N2); 
@@ -43,6 +44,45 @@ def wkb_stretch(z, N2, MLD):
     stretched = np.append(tot_depth, stretched); 
     return vel_factor, stretched
    
+
+# WKB STRETCHING AND SCALING FACTORS
+argo_path = '/mnt/sda1/SciData/ARGO/RG_ArgoClim_33pfit_2019_annual.nc';
+def argo_wkb(lon,lat,adcp_dat,zcoord='depth'):
+    argo = xr.open_dataset(argo_path);
+    argo = argo.sel(LONGITUDE=134, method='nearest');
+    argo = argo.sel(LATITUDE=14, method='nearest');
+    # Save everything necessary to perform wkb stretching
+    ctd_prof = {'T':argo['ARGO_TEMPERATURE_MEAN'],
+                'S':argo['ARGO_SALINITY_MEAN'],
+                'p':argo['PRESSURE']}
+    ctd_prof['CT'] = gsw.CT_from_t(ctd_prof['S'],ctd_prof['T'], ctd_prof['p'])
+    ctd_prof['N2'], ctd_prof['p_mid'] = gsw.Nsquared(ctd_prof['S'],ctd_prof['CT'],ctd_prof['p']);
+    # Now define wkb properties
+    wkb_prof = {'z':adcp_dat[zcoord]};
+    # n2 at adcp bins:
+    wkb_prof['N2'] = np.interp(wkb_prof['z'],ctd_prof['p_mid'], ctd_prof['N2'])
+    wkb_prof['u_scale'], wkb_prof['z_stretch'] = wkb_stretch( \
+                wkb_prof['z'],wkb_prof['N2'], 30 );
+    return wkb_prof, ctd_prof
+
+def adcp_to_wkb(adcp_block, wkb_prof, dz=10, axis=0):
+    ''' Take in xr.DataArray representing ADCP measurements and 
+    1) Scale velocities using wkb_prof['u_scale']
+    2) Interpolate data from stretched coordinate wkb_prof['z_stretch']
+     ---  onto constantly-spaced version
+    '''
+    block = adcp_block * wkb_prof['u_scale'];
+    z_wkb = wkb_prof['z_stretch'];
+    z_wkb_c = np.arange(min(z_wkb), max(z_wkb)+1, dz);
+    
+    # Now use inteprolator to go from z_stretch to z_constant_dz
+    interpolator = scinterp.interp1d( wkb_prof['z_stretch'], block.values,
+            kind='slinear', axis=axis);
+    block = xr.DataArray(data=interpolator(z_wkb_c),
+            dims=['depth','time'],
+            coords={'depth_wkb':('depth',z_wkb_c), 'time':('time',block.time) } );
+    return block
+
 def geostrophy(lat, lon, depth, density, ssh='none'):
     # Calculate geostrophic shear/currents from density along a transect.
     # either lat or lon  need to be sequence with a single element

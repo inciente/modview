@@ -83,6 +83,17 @@ def standardize_coords(obj,array=None):
         renamer[axes[st_coord][0]] = st_coord;
     return obj.rename(renamer)
 
+def cut_map(data,limits,t_now=None):
+    # Most useful for model output (3D). Make sure that coordinates have been 
+    # standardized already.
+    data = data.sel(latitude=slice(limits['y0'],limits['y1']))
+    data = data.sel(longitude=slice(limits['x0'],limits['x1']))
+    if t_now is not None:
+        data = data.sel(time=t_now,method='nearest');
+    else:
+        data = data.sel(time=slice(limits['t0'],limits['t1']))
+    return data
+
 
 def coord_axes(obj):
     ''' Read the names and values of axes/dims in xr obj and
