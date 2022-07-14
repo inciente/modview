@@ -6,7 +6,6 @@ import datetime, warnings
 import os.path
 from abc import ABC, abstractmethod
 
-
 ''' 
 Module for loading, preparing, merging, and saving data from geophysical 
 simulations and experiments. 
@@ -183,48 +182,39 @@ class assemble:
         self.grids['u'][2].plot()
         
     def concat_xrs(self, variable, sorter, sort=True, wiggle=False):
-        ''' Go to self.grids[variable] and concatenate all xr objects stored in that list.
-        Concatenation will occur along the sorter (string) dimension 
+        ''' Concatenate xr objs in self.grids[variable]
+        along the sorter (string) dimension 
         '''
-        datlist = self.grids[variable] # list of objects for this variable
-        vardata = []; varcoords = []; # store data and coordinats separately
-        all_inst = xr.concat( datlist, dim=sorter ); # sorter is a string
+        datlist = self.grids[variable] # objects for this var
+        all_inst = xr.concat( datlist, dim=sorter ); 
         if wiggle:
-            all_inst[sorter] = all_inst[sorter] + 1e-5*np.random.rand( len(all_inst[sorter]));
+            all_inst[sorter] = all_inst[sorter] \
+                    + 1e-5*np.random.rand( len(all_inst[sorter]));
         if sort:
             all_inst = all_inst.sortby(sorter); 
         return all_inst
         
         
     def interp_grid(self, variables, sorter , wiggle=False):
-        '''  All grids in self.grids[variables[kk]] are interpolated onto 
-        a new set of axes sorter is the str() for whatever dim unites 
-        measurements for moorings it's usually depth or z '''
-        source_coords = dict(); 
-        source_data = dict(); 
-        cake = [];     
+        '''  All grids in self.grids[variables[kk]] 
+        are interpolated onto a new set of axes 
+        sorter (string) specifies the dimension along which 
+        to concatenate and interpolate arrays '''
         # Cyle through all variables requested
         for kk in range(len(variables)):
-            all_inst = self.concat_xrs(variables[kk], sorter, sort=True, wiggle=True); 
-            if all_inst.dims[1] == sorter: # THIS IS VERY SPECIFIC TO MOORING APPLICATION
-                all_inst = all_inst.transpose(); # only works for 2d objects
+            all_inst = self.concat_xrs(variables[kk], 
+                    sorter, sort=True, wiggle=True); 
+            if all_inst.dims[1] == sorter: # for moorings
+                all_inst = all_inst.transpose(); # for 2d objs
+            all_inst = all_inst.interpolate_na(dim=sorter);
 
-            all_inst = all_inst.interpolate_na(dim=sorter); # INTERPOLATION WON'T BE NECESSARY IN MANY CASES
-            self.vars[variables[kk]] = all_inst; # replace list for single xr object
-     
-#    def make_multivar(self, vars2get, filepaths):
-		# Input a dictionary whose keys are variable names, and content are 
-		# lists with files where each variable is stored 
-	
-#    def unifygrid(self, variable, common_vecs):
-#        varexists = variable in self.grids; 
-#        if varexists == False:
-#            print('Variable files have not been loaded');
-#            return 
+            self.vars[variables[kk]] = all_inst; 
+            # replace list for single xr object	
         
     def gridtime(self, varname):
         gridobj = self.grids[varname];
         return gridobj.time
+
 
 ''' BELOW ARE THE FUNCTIONS THAT ALLOW .MAT SUPPORT '''
 class matfile:

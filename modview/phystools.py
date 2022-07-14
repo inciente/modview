@@ -29,13 +29,14 @@ def hydrostasy(rho, zlevels, ssh=0, z_req=np.nan, p_axis=0, p_ref = 0):
     pressure[1:] = [dz[i]*9.81*0.5*(rho[i-1]+rho[i]) for i in range(1,len(pressure))];
     return pressure
 
-def wkb_stretch(z, N2, MLD):
+def wkb_stretch(z, N2, MLD, smooth = True ):
     belowML = z>MLD; 
     N = np.sqrt(N2); 
     sratio = np.nanmean(N[belowML])/N; 
-    sratio = pd.DataFrame(sratio); # to get rolling mean
-    sratio = sratio.rolling(10, min_periods=1).mean().to_numpy(); 
-    
+    if smooth:
+        sratio = pd.DataFrame(sratio); # to get rolling mean
+        sratio = sratio.rolling(3, 
+                min_periods=1).mean().to_numpy(); 
     vel_factor = np.sqrt(sratio); # velocity scaling
     
     tot_depth = z[~belowML]; # stretch vertical coordinate

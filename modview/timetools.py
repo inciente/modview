@@ -7,6 +7,12 @@ import pandas as pd
 from abc import ABC, abstractmethod
 import xarray as xr
 
+def get_dt( xr_obj ):
+    # Return mean dt
+    time = pd.to_datetime( xr_obj.time.values )
+    dt = ( time[1] - time[0] ).total_seconds()
+    return dt
+
 def prep_data(data_mat, axis=0, detrend=False):
     avg_real = np.nanmean(np.real(data_mat)); 
     avg_imag = np.nanmean(np.imag(data_mat)); 
@@ -52,16 +58,14 @@ def power_from_mat(data_mat, axis=0, detrend=False):
     # Enter a 2D array and return the spectra of columns (ax=0) or rows (ax=1)
     N = data_mat.shape[axis]; # number of elements for fft
     M = data_mat.shape[np.abs(axis-1)]; # number of realizations
-    data_mat = prep_data(data_mat, axis, detrend); # remove nans, detrend
-
+    # remove nans, detrend
+    data_mat = prep_data(data_mat, axis, detrend); 
     comp = np.sum( np.iscomplex(data_mat))>1; # check if complex
     if comp:    
         transform = np.fft.fft( data_mat, axis=axis); 
     else: 
         transform = np.fft.rfft( np.real(data_mat), axis=axis); 
-    # make sure line below works for both fft and rfft 
-    #transform = np.delete( transform, 0, axis=axis); # remove freq=0 
-    transform = np.real(transform * np.conj(transform)); # calc power       
+    transform = np.real(transform * np.conj(transform)); # power
     return transform
 
 def spectrum_1D(arr, dt, axis, nseg=1, hann=False, **kwargs):
@@ -183,25 +187,25 @@ def spectrum(data, dt, nseg=1, hann=True):
 '''	
 
 def powerspec(timeseries, dt, timeax=0, hann=True):
-	"""
-	Calculate the power density spectrum of object "timeseries" (must be real)
-	"""
-
-	# Store variance of each segment:
-	normvar = np.expand_dims( np.var( detrended, axis=timeax), axis=timeax); 
-	df = 2*np.pi/(detrended.shape[timeax]*dt); 
+    """
+    Calculate the power density spectrum of object "timeseries" (must be real)
+    """
+    detrended = prep_data( timeseries, detrend = True )
+    # Store variance of each segment:
+    normvar = np.expand_dims( np.var( detrended, axis=timeax), axis=timeax); 
+    df = 2*np.pi/(detrended.shape[timeax]*dt); 
 	
-	if hann:
-		detrended = detrended*np.hanning(detrended.shape[timeax]); # hanning window
+    if hann:
+        detrended = detrended*np.hanning(detrended.shape[timeax]); # hanning window
 	
-	spectrum = np.fft.rfft(detrended, axis=timeax); #real fft
-	spectrum = spectrum*np.conj(spectrum); #squared
-	spectrum = np.delete( spectrum, 0, axis=timeax); # delete row for freq=0
+    spectrum = np.fft.rfft(detrended, axis=timeax); #real fft
+    spectrum = spectrum*np.conj(spectrum); #squared
+    spectrum = np.delete( spectrum, 0, axis=timeax); # delete row for freq=0
 	
-	varinspec = np.expand_dims( np.nansum( spectrum*df, axis=timeax), axis=timeax); # area under spectrum
-	spectrum = (spectrum/varinspec)*normvar; # normalize for variance
+    varinspec = np.expand_dims( np.nansum( spectrum*df, axis=timeax), axis=timeax); # area under spectrum
+    spectrum = (spectrum/varinspec)*normvar; # normalize for variance
 	
-	return np.real(spectrum)
+    return np.real(spectrum)
 	
 
 def xpass(var, frads, dt_obs, filt_type, order = 3, axis=None):
